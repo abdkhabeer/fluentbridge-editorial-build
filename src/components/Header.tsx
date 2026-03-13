@@ -48,6 +48,7 @@ const Header = () => {
             <a
               key={link.href}
               href={link.href}
+              onClick={(e) => { e.preventDefault(); scrollToHash(link.href); }}
               className={`text-label transition-colors duration-300 hover:opacity-70 ${
                 scrolled ? "text-foreground" : "text-warm-white"
               }`}
@@ -57,6 +58,7 @@ const Header = () => {
           ))}
           <a
             href="#contact"
+            onClick={(e) => { e.preventDefault(); scrollToHash("#contact"); }}
             className={`text-label px-6 py-2.5 border transition-all duration-300 hover:opacity-80 ${
               scrolled
                 ? "border-foreground text-foreground hover:bg-foreground hover:text-background"
