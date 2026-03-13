@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -9,6 +9,16 @@ const navLinks = [
   { label: "FAQ", href: "#faq" },
   { label: "Contact", href: "#contact" },
 ];
+
+const scrollToHash = (hash: string) => {
+  const id = hash.replace("#", "");
+  const el = document.getElementById(id);
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth" });
+  } else if (id === "hero") {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+};
 
 const Header = () => {
   const [scrolled, setScrolled] = useState(false);
