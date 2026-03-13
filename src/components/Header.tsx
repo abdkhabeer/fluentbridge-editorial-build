@@ -91,7 +91,7 @@ const Header = () => {
                 <a
                   key={link.href}
                   href={link.href}
-                  onClick={() => setMobileOpen(false)}
+                  onClick={(e) => { e.preventDefault(); setMobileOpen(false); setTimeout(() => scrollToHash(link.href), 300); }}
                   className="text-label text-foreground"
                 >
                   {link.label}
@@ -99,7 +99,7 @@ const Header = () => {
               ))}
               <a
                 href="#contact"
-                onClick={() => setMobileOpen(false)}
+                onClick={(e) => { e.preventDefault(); setMobileOpen(false); setTimeout(() => scrollToHash("#contact"), 300); }}
                 className="text-label px-6 py-3 border border-foreground text-foreground text-center hover:bg-foreground hover:text-background transition-colors"
               >
                 Book a Trial Lesson
