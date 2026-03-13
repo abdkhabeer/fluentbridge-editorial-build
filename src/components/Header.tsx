@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -9,6 +9,16 @@ const navLinks = [
   { label: "FAQ", href: "#faq" },
   { label: "Contact", href: "#contact" },
 ];
+
+const scrollToHash = (hash: string) => {
+  const id = hash.replace("#", "");
+  const el = document.getElementById(id);
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth" });
+  } else if (id === "hero") {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+};
 
 const Header = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -38,6 +48,7 @@ const Header = () => {
             <a
               key={link.href}
               href={link.href}
+              onClick={(e) => { e.preventDefault(); scrollToHash(link.href); }}
               className={`text-label transition-colors duration-300 hover:opacity-70 ${
                 scrolled ? "text-foreground" : "text-warm-white"
               }`}
@@ -47,6 +58,7 @@ const Header = () => {
           ))}
           <a
             href="#contact"
+            onClick={(e) => { e.preventDefault(); scrollToHash("#contact"); }}
             className={`text-label px-6 py-2.5 border transition-all duration-300 hover:opacity-80 ${
               scrolled
                 ? "border-foreground text-foreground hover:bg-foreground hover:text-background"
@@ -79,7 +91,7 @@ const Header = () => {
                 <a
                   key={link.href}
                   href={link.href}
-                  onClick={() => setMobileOpen(false)}
+                  onClick={(e) => { e.preventDefault(); setMobileOpen(false); setTimeout(() => scrollToHash(link.href), 300); }}
                   className="text-label text-foreground"
                 >
                   {link.label}
@@ -87,7 +99,7 @@ const Header = () => {
               ))}
               <a
                 href="#contact"
-                onClick={() => setMobileOpen(false)}
+                onClick={(e) => { e.preventDefault(); setMobileOpen(false); setTimeout(() => scrollToHash("#contact"), 300); }}
                 className="text-label px-6 py-3 border border-foreground text-foreground text-center hover:bg-foreground hover:text-background transition-colors"
               >
                 Book a Trial Lesson
