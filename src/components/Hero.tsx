@@ -1,41 +1,77 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 
 const videos = ["/videos/hero1.mp4", "/videos/hero2.mp4", "/videos/hero3.mp4"];
 
 const Hero = () => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [currentVideo, setCurrentVideo] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [nextIndex, setNextIndex] = useState(1);
+  const [transitioning, setTransitioning] = useState(false);
 
+  const currentRef = useRef<HTMLVideoElement>(null);
+  const nextRef = useRef<HTMLVideoElement>(null);
+
+  const startTransition = useCallback(() => {
+    // Preload next video and start crossfade
+    const nextVid = nextRef.current;
+    if (nextVid) {
+      nextVid.src = videos[nextIndex];
+      nextVid.load();
+      nextVid.play().catch(() => {});
+    }
+    setTransitioning(true);
+
+    // After crossfade completes, swap roles
+    setTimeout(() => {
+      setCurrentIndex(nextIndex);
+      setNextIndex((nextIndex + 1) % videos.length);
+      setTransitioning(false);
+    }, 1500);
+  }, [nextIndex]);
+
+  // Listen for current video nearing its end
   useEffect(() => {
-    const video = videoRef.current;
+    const video = currentRef.current;
     if (!video) return;
 
-    const handleEnded = () => {
-      setCurrentVideo((prev) => (prev + 1) % videos.length);
+    const onTimeUpdate = () => {
+      if (video.duration && video.currentTime >= video.duration - 1.5 && !transitioning) {
+        startTransition();
+      }
     };
 
-    video.addEventListener("ended", handleEnded);
-    return () => video.removeEventListener("ended", handleEnded);
-  }, []);
+    video.addEventListener("timeupdate", onTimeUpdate);
+    return () => video.removeEventListener("timeupdate", onTimeUpdate);
+  }, [startTransition, transitioning]);
 
+  // Set source for current video when index changes
   useEffect(() => {
-    const video = videoRef.current;
+    const video = currentRef.current;
     if (!video) return;
-    video.src = videos[currentVideo];
+    video.src = videos[currentIndex];
+    video.load();
     video.play().catch(() => {});
-  }, [currentVideo]);
+  }, [currentIndex]);
 
   return (
     <section id="hero" className="relative h-screen w-full overflow-hidden">
+      {/* Current video */}
       <video
-        ref={videoRef}
+        ref={currentRef}
         className="absolute inset-0 w-full h-full object-cover"
         autoPlay
         muted
         playsInline
         src={videos[0]}
+      />
+      {/* Next video (crossfade layer) */}
+      <video
+        ref={nextRef}
+        className="absolute inset-0 w-full h-full object-cover transition-opacity duration-[1500ms] ease-in-out"
+        muted
+        playsInline
+        style={{ opacity: transitioning ? 1 : 0 }}
       />
       <div className="absolute inset-0 bg-charcoal/50" />
 
