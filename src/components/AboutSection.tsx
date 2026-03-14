@@ -20,7 +20,7 @@ const AboutSection = () => (
           </h2>
           <div className="space-y-6">
             <p className="text-body-lg text-muted-foreground">
-              FluentBridges is led by a CELTA-certified English instructor based in Cairo who works with adult learners and professionals seeking practical communication skills.
+              FluentBridges is led by Abdul Khabeer, a CELTA-certified English instructor based in Cairo who works with adult learners and professionals seeking practical communication skills.
             </p>
             <p className="text-body-lg text-muted-foreground">
               Lessons focus on building confidence, clarity, and real-world fluency, not memorizing textbooks.
