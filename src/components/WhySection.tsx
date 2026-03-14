@@ -12,7 +12,7 @@ const WhySection = () => (
   <section className="section-padding bg-background">
     <div className="container-editorial">
       <AnimatedSection>
-        <p className="text-label text-muted-foreground mb-4 text-center">Why FluentBridge</p>
+        <p className="text-label text-muted-foreground mb-4 text-center">Why FluentBridges?</p>
         <h2 className="text-editorial-lg text-foreground mb-20 text-center max-w-2xl mx-auto">
           A thoughtful approach to English learning.
         </h2>

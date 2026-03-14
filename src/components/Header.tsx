@@ -40,7 +40,7 @@ const Header = () => {
     >
       <div className="container-editorial flex items-center justify-between h-20">
         <a href="#hero" className={`font-serif text-2xl tracking-tight transition-colors duration-500 ${scrolled ? "text-foreground" : "text-warm-white"}`}>
-          FluentBridge
+          FluentBridges
         </a>
 
         <nav className="hidden md:flex items-center gap-10">

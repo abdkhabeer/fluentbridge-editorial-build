@@ -11,7 +11,7 @@ const Footer = () => (
     <div className="container-editorial">
       <div className="grid md:grid-cols-3 gap-12 mb-16">
         <div>
-          <h3 className="font-serif text-2xl mb-4">FluentBridge</h3>
+          <h3 className="font-serif text-2xl mb-4">FluentBridges</h3>
           <p className="text-sm text-primary-foreground/60 leading-relaxed max-w-xs">
             Helping adults and professionals bridge the gap between studying English and speaking it confidently.
           </p>
@@ -48,7 +48,7 @@ const Footer = () => (
       </div>
       <div className="border-t border-primary-foreground/10 pt-8 text-center">
         <p className="text-xs text-primary-foreground/40">
-          © {new Date().getFullYear()} FluentBridge. All rights reserved.
+          © {new Date().getFullYear()} FluentBridges. All rights reserved.
         </p>
       </div>
     </div>

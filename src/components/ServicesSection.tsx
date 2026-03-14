@@ -37,7 +37,7 @@ const ServicesSection = () => (
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
         {services.map((service, i) => (
           <AnimatedSection key={service.title} delay={i * 0.1}>
-            <div className="group p-8 lg:p-10 bg-background border border-border hover:border-navy/20 transition-all duration-500 hover:shadow-lg">
+            <div className="group p-8 lg:p-10 bg-background border border-border hover:border-navy/20 transition-all duration-500 hover:shadow-lg h-full">
               <service.icon
                 size={28}
                 className="text-navy mb-6 transition-transform duration-500 group-hover:scale-110"

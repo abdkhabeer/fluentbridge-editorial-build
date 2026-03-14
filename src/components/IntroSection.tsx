@@ -10,7 +10,7 @@ const IntroSection = () => (
       </AnimatedSection>
       <AnimatedSection delay={0.15}>
         <p className="text-body-lg text-muted-foreground max-w-2xl mx-auto">
-          FluentBridge offers personalized English coaching for adults who want to communicate clearly and confidently in real-life situations. Lessons focus on practical speaking, listening, and real-world communication.
+          FluentBridges offers personalized English coaching for adults who want to communicate clearly and confidently in real-life situations. Lessons focus on practical speaking, listening, and real-world communication.
         </p>
       </AnimatedSection>
     </div>

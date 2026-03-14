@@ -7,8 +7,14 @@ const ContactSection = () => {
     name: "", email: "", whatsapp: "", level: "", goals: "", message: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+      const formData = new FormData(e.target as HTMLFormElement);
+      await fetch("/", {
+        method: "POST",
+        headers: {"Content-Type": "application/x-www-form-urlencoded "},
+        body: new URLSearchParams(formData as any).toString(),
+      });
     toast.success("Thank you! I'll be in touch within 24 hours.");
     setForm({ name: "", email: "", whatsapp: "", level: "", goals: "", message: "" });
   };
@@ -43,8 +49,14 @@ const ContactSection = () => {
           </AnimatedSection>
 
           <AnimatedSection delay={0.2}>
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} 
+                className="space-y-5">
+                name="contact"
+                method="POST"
+                data-netlify="true"
+                  
               <input
+                name="name"
                 type="text"
                 placeholder="Name"
                 required
@@ -54,6 +66,7 @@ const ContactSection = () => {
                 className={inputClass}
               />
               <input
+                name="email"
                 type="email"
                 placeholder="Email"
                 required
@@ -63,6 +76,7 @@ const ContactSection = () => {
                 className={inputClass}
               />
               <input
+                name="whatsapp"
                 type="tel"
                 placeholder="WhatsApp Number"
                 maxLength={20}
@@ -71,6 +85,7 @@ const ContactSection = () => {
                 className={inputClass}
               />
               <select
+                name="level"
                 value={form.level}
                 onChange={(e) => setForm({ ...form, level: e.target.value })}
                 className={inputClass}
@@ -82,6 +97,7 @@ const ContactSection = () => {
                 <option value="advanced">Advanced</option>
               </select>
               <input
+                name="goals"
                 type="text"
                 placeholder="Your Goals (e.g., interview prep, business English)"
                 maxLength={200}
@@ -90,6 +106,7 @@ const ContactSection = () => {
                 className={inputClass}
               />
               <textarea
+                name="message"
                 placeholder="Message"
                 rows={4}
                 maxLength={1000}
@@ -104,6 +121,7 @@ const ContactSection = () => {
                 Send Message
               </button>
             </form>
+            <input type="hidden" name="form-name" value="contact" />
           </AnimatedSection>
         </div>
       </div>
