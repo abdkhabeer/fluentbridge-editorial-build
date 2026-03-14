@@ -50,11 +50,13 @@ const ContactSection = () => {
 
           <AnimatedSection delay={0.2}>
             <form onSubmit={handleSubmit} 
-                className="space-y-5">
+                className="space-y-5"
                 name="contact"
                 method="POST"
                 data-netlify="true"
-                  
+            >
+                <input type="hidden" name="form-name" value="contact" />
+
               <input
                 name="name"
                 type="text"
@@ -121,7 +123,6 @@ const ContactSection = () => {
                 Send Message
               </button>
             </form>
-            <input type="hidden" name="form-name" value="contact" />
           </AnimatedSection>
         </div>
       </div>
