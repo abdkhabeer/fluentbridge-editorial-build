@@ -89,8 +89,8 @@ const addons = [
 
 const payment = [
   "Vodafone Cash",
-  "InstaPay",
-  "Bank Transfer",
+  "PayPal",
+  "Stripe",
   "Wise (international students)",
 ];
 
