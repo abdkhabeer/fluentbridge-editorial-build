@@ -105,7 +105,7 @@ const PricingSection = () => (
           Transparent pricing. No surprises.
         </h2>
         <p className="text-body-lg text-muted-foreground max-w-xl mb-16">
-          All lessons are live, 1-on-1, and fully personalized. Packages are valid for 60 days from purchase.
+          All lessons are live, 1-on-1, and fully personalized. Packages are valid for 30 days from purchase.
         </p>
       </AnimatedSection>
 
@@ -241,7 +241,7 @@ const PricingSection = () => (
             <p className="text-label text-muted-foreground mb-4">Good to Know</p>
             <ul className="space-y-2">
               {[
-                "Packages are valid for 60 days from purchase",
+                "Packages are valid for 30 days from purchase",
                 "24-hour cancellation policy",
                 "Lessons conducted via Zoom or Google Meet",
                 "All levels welcome, from beginner to advanced",
