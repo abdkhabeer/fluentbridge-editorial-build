@@ -34,12 +34,12 @@ const plans = [
   {
     label: "Most Popular",
     title: "8-Lesson Package",
-    price: "4,800",
+    price: "4,500",
     unit: "EGP",
-    duration: "600 EGP per lesson",
+    duration: " ~ 560 EGP per lesson",
     description: "Consistent weekly practice for real, measurable progress. Best for most learners.",
     features: [
-      "Save 200 EGP per lesson",
+      "Save 250 EGP per lesson",
       "Priority scheduling",
       "Monthly progress review",
       "WhatsApp support between lessons",
@@ -50,12 +50,11 @@ const plans = [
   {
     label: "Best Value",
     title: "12-Lesson Package",
-    price: "6,600",
+    price: "6,000",
     unit: "EGP",
-    duration: "550 EGP per lesson",
+    duration: "500 EGP per lesson",
     description: "Maximum commitment, maximum results. Ideal for professionals with a specific deadline or exam.",
     features: [
-      "Save 250 EGP per lesson",
       "Priority scheduling",
       "Monthly progress review",
       "WhatsApp support between lessons",
@@ -75,9 +74,9 @@ const addons = [
   },
   {
     title: "4-Lesson Package",
-    price: "2,600 EGP",
+    price: "2,400 EGP",
     description:
-      "650 EGP per lesson. A lighter commitment — ideal if you want to try a package before going all-in.",
+      "600 EGP per lesson. A lighter commitment — ideal if you want to try a package before going all-in.",
   },
   {
     title: "Small Group Lessons",
