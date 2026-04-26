@@ -9,7 +9,7 @@ import AnimatedSection from "./AnimatedSection";
 const faqs = [
   {
     q: "Who are lessons for?",
-    a: "Lessons are designed for adults and professionals — university graduates, entrepreneurs, career-focused individuals, and anyone seeking to improve their English communication skills.",
+    a: "Lessons are designed for adults and professionals, university graduates, entrepreneurs, career-focused individuals, and anyone seeking to improve their English communication skills.",
   },
   {
     q: "Are lessons online?",

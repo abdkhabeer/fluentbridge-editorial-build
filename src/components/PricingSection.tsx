@@ -76,7 +76,7 @@ const addons = [
     title: "4-Lesson Package",
     price: "2,400 EGP",
     description:
-      "600 EGP per lesson. A lighter commitment — ideal if you want to try a package before going all-in.",
+      "600 EGP per lesson. A lighter commitment, ideal if you want to try a package before going all-in.",
   },
   {
     title: "Small Group Lessons",
