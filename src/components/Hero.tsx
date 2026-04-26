@@ -86,8 +86,8 @@ const Hero = () => {
             CELTA-Certified English Coaching
           </p>
           <h1 className="text-editorial-xl text-warm-white mb-6">
-            Build Confidence.<br />
-            Speak English Clearly.
+            Communicate Clearly.<br />
+            Speak With Confidence.
           </h1>
           <p className="text-body-lg text-warm-white/80 max-w-xl mb-10">
             Personalized online English lessons designed for professionals and motivated learners in Cairo and beyond.
