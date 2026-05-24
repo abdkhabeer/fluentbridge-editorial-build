@@ -55,7 +55,7 @@ const Hero = () => {
   }, [currentIndex]);
 
   return (
-    <section id="hero" className="relative h-screen w-full overflow-hidden">
+    <section id="hero" className="relative h-[100svh] w-full overflow-hidden">
       {/* Current video */}
       <video
         ref={currentRef}
