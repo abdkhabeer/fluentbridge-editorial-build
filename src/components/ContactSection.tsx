@@ -33,7 +33,7 @@ const ContactSection = () => {
             </h2>
             <div className="space-y-6 text-muted-foreground">
               <p className="text-body-lg">
-                Based in Cairo, teaching students online worldwide. Send a message to book your trial lesson or ask any questions.
+                Based in Cairo, teaching students online worldwide. Send a message to book your 30-minute trial lesson (100 EGP, credited toward your first 8- or 12-lesson package) or ask any questions.
               </p>
               <div className="space-y-3 text-sm">
                 <p>

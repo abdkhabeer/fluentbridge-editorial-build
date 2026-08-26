@@ -90,7 +90,7 @@ const Hero = () => {
             Speak With Confidence.
           </h1>
           <p className="text-body-lg text-warm-white/80 max-w-xl mb-10">
-            Personalized online English lessons designed for professionals and motivated learners in Cairo and beyond.
+            Personalized online English lessons designed for students, professionals, and motivated learners in Cairo and beyond.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
             <a
