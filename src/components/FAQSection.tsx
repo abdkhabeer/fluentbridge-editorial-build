@@ -17,7 +17,7 @@ const faqs = [
   },
   {
     q: "Do you offer group lessons?",
-    a: "Yes. Small Group English runs with 2–4 students per group at 150 EGP per student, per lesson — each student pays their own rate. It is the most affordable way to practice, and works well for classmates, colleagues, or friends studying together.",
+    a: "Yes. Small Group English runs with 2–4 students per group at 150 EGP per student, per lesson. Each student pays their own rate. It is the most affordable way to practice, and works well for classmates, colleagues, or friends studying together.",
   },
   {
     q: "Are lessons online?",
@@ -29,7 +29,7 @@ const faqs = [
   },
   {
     q: "How long are lessons?",
-    a: "Standard lessons are 60 minutes. A trial lesson is a shorter 30-minute session — not a full lesson — so we can assess your level and discuss your goals.",
+    a: "Standard lessons are 60 minutes. A trial lesson is a shorter 30-minute session, not a full lesson, so we can assess your level and discuss your goals.",
   },
   {
     q: "How do I book a trial lesson?",

@@ -10,7 +10,7 @@ const CTASection = () => (
       </AnimatedSection>
       <AnimatedSection delay={0.15}>
         <p className="text-body-lg text-primary-foreground/75 mb-10 max-w-xl mx-auto">
-          Start with a 30-minute trial lesson for 100 EGP — credited toward your first 8- or 12-lesson package if you enroll.
+          Start with a 30-minute trial lesson for 100 EGP, credited toward your first 8- or 12-lesson package if you enroll.
         </p>
       </AnimatedSection>
       <AnimatedSection delay={0.25}>

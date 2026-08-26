@@ -65,7 +65,7 @@ const tracks: Track[] = [
     id: "group",
     heading: "Small Group English",
     blurb:
-      "Groups of 2–4 students. All prices below are per student, not per group — each student pays their own rate.",
+      "Groups of 2–4 students. All prices below are per student, not per group. Each student pays their own rate.",
     plans: [
       {
         label: "2–4 Students",
@@ -191,7 +191,7 @@ const addons = [
     title: "Trial Lesson",
     price: "100 EGP / 30 minutes",
     description:
-      "A relaxed 30-minute first session to assess your level and discuss your goals — not a full 60-minute lesson. The 100 EGP fee is credited toward your first 8- or 12-lesson package if you enroll.",
+      "A relaxed 30-minute first session to assess your level and discuss your goals, not a full 60-minute lesson. The 100 EGP fee is credited toward your first 8- or 12-lesson package if you enroll.",
   },
 ];
 
@@ -271,7 +271,7 @@ const PlanCard = ({ plan }: { plan: Plan }) => (
             plan.highlight ? "text-background/80" : "text-muted-foreground"
           }`}
         >
-          <span className={`mt-0.5 ${plan.highlight ? "text-background/50" : "text-navy/50"}`}>—</span>
+          <span className={`mt-0.5 ${plan.highlight ? "text-background/50" : "text-navy/50"}`}>–</span>
           {f}
         </li>
       ))}
@@ -303,7 +303,7 @@ const PricingSection = () => (
         </h2>
         <p className="text-body-lg text-muted-foreground max-w-xl mb-16">
           All lessons are live and fully personalized. Rates depend on the kind of coaching
-          you need — small group, Egyptian student and General English, Professional, or
+          you need: small group, Egyptian student and General English, Professional, or
           Business English. Packages are valid for 30 days from purchase.
         </p>
       </AnimatedSection>
@@ -358,7 +358,7 @@ const PricingSection = () => (
             <ul className="space-y-2">
               {payment.map((p) => (
                 <li key={p} className="text-sm text-muted-foreground flex items-center gap-2">
-                  <span className="text-navy/40">—</span> {p}
+                  <span className="text-navy/40">–</span> {p}
                 </li>
               ))}
             </ul>
@@ -376,7 +376,7 @@ const PricingSection = () => (
                 "All levels welcome, from beginner to advanced",
               ].map((note) => (
                 <li key={note} className="text-sm text-muted-foreground flex items-start gap-2">
-                  <span className="text-navy/40 mt-0.5">—</span> {note}
+                  <span className="text-navy/40 mt-0.5">–</span> {note}
                 </li>
               ))}
             </ul>
