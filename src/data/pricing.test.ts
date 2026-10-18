@@ -43,8 +43,8 @@ describe("published prices", () => {
     expect(trialLesson).toMatchObject({ amount: 100, currency: "EGP", minutes: 30 });
   });
 
-  it("Saudi Arabia prices are exactly 35, 450 and 680 SAR", () => {
-    expect(amounts("ksa")).toEqual({ "ksa-single": "35 SAR", "ksa-monthly-3": "450 SAR", "ksa-monthly-5": "680 SAR" });
+  it("Saudi Arabia prices are exactly 40, 450 and 680 SAR", () => {
+    expect(amounts("ksa")).toEqual({ "ksa-single": "40 SAR", "ksa-monthly-3": "450 SAR", "ksa-monthly-5": "680 SAR" });
   });
 
   it("United States prices are exactly $10, $120 and $180 USD", () => {
@@ -183,7 +183,7 @@ describe("snapshots and formatting", () => {
     expect(describeSnapshot(buildPriceSnapshot("us-monthly-3")!)).toBe(
       "One-on-One English, United States (USD), Monthly plan, 3 Classes per Week: $120 USD per month (12 classes per 4-week billing period)",
     );
-    expect(describeSnapshot(buildPriceSnapshot("ksa-single")!)).toBe("One-on-One English, Saudi Arabia (SAR), Single Lesson: 35 SAR");
+    expect(describeSnapshot(buildPriceSnapshot("ksa-single")!)).toBe("One-on-One English, Saudi Arabia (SAR), Single Lesson: 40 SAR");
   });
 
   it("reads snapshots saved before multi-currency pricing as EGP", () => {

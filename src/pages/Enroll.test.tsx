@@ -120,7 +120,7 @@ describe("enrollment funnel", () => {
     renderAt("/enroll");
     toLessons("Saudi Arabia", "Riyadh", "+966 50 123 4567");
     expect(screen.getByText(/Pricing for Students in Saudi Arabia, from your location/)).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /^Single Lesson.*35 SAR/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^Single Lesson.*40 SAR/ })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /^3 Classes per Week.*Monthly plan.*450 SAR per month.*12 classes/ })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /^5 Classes per Week.*680 SAR per month.*20 classes/ })).toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: /EGP|USD/ })).toBeNull();

@@ -127,7 +127,7 @@ describe("footer and pricing", () => {
     renderPricing();
     choose("Saudi Arabia");
     expect(screen.getByRole("heading", { name: "Pricing for Students in Saudi Arabia" })).toBeInTheDocument();
-    for (const price of ["35", "450", "680"]) expect(screen.getByText(price)).toBeInTheDocument();
+    for (const price of ["40", "450", "680"]) expect(screen.getByText(price)).toBeInTheDocument();
     expect(screen.getAllByText("SAR per month")).toHaveLength(2);
     expect(enrollHrefs()).toEqual(["/enroll?package=ksa-single", "/enroll?package=ksa-monthly-3", "/enroll?package=ksa-monthly-5"]);
     expect(screen.queryByText("2,200")).toBeNull();

@@ -385,7 +385,7 @@ const internationalTrack = (id: InternationalTrackId, place: string, currency: C
 });
 
 // Do not change these amounts without the owner's approval.
-const ksaTracks = [internationalTrack("ksa", "Saudi Arabia", "SAR", { single: 35, threePerWeek: 450, fivePerWeek: 680 })];
+const ksaTracks = [internationalTrack("ksa", "Saudi Arabia", "SAR", { single: 40, threePerWeek: 450, fivePerWeek: 680 })];
 const usTracks = [internationalTrack("us", "United States", "USD", { single: 10, threePerWeek: 120, fivePerWeek: 180 })];
 
 export type PendingPrices = {

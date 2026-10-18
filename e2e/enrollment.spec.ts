@@ -149,7 +149,7 @@ test("location-based pricing: switching locations, mobile layout, and pricing re
   await page.keyboard.press("ArrowRight");
   await expect(page.getByRole("radio", { name: "Saudi Arabia" })).toBeChecked();
   await expect(page.getByRole("heading", { name: "Pricing for Students in Saudi Arabia" })).toBeVisible();
-  for (const price of ["35", "450", "680"]) await expect(pricing.getByText(price, { exact: true })).toBeVisible();
+  for (const price of ["40", "450", "680"]) await expect(pricing.getByText(price, { exact: true })).toBeVisible();
   await expect(pricing.getByText("2,200", { exact: true })).toHaveCount(0);
   await expectNoHorizontalScroll(page);
   await shot(page, "12-pricing-ksa");
