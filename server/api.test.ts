@@ -136,6 +136,30 @@ describe("POST /api/applications", () => {
     expect((await app(res.body.application_id))!.selected_package_price_snapshot!.price_egp).toBe(6800);
   });
 
+  it("snapshots SAR and USD plans in their own currency, priced from the server's data", async () => {
+    const ksa = { country: "Saudi Arabia", city: "Riyadh", whatsapp_number: "+966 50 123 4567", preferred_payment_method: "paypal" } as const;
+    const { res } = await submit(token(), validDraft({ ...ksa, selected_package: "ksa-monthly-3" }));
+    expect(res.status).toBe(201);
+    const a = await app(res.body.application_id);
+    expect(a!.selected_package_price_snapshot).toMatchObject({ currency: "SAR", price: 450, price_egp: null, billing: "monthly", classes_per_week: 3, lessons: 12 });
+    expect(a!.review_flags).not.toContain("pricing_quote_needed");
+  });
+
+  it("refuses another location's prices, and flags locations that need a quote", async () => {
+    const giza = await submit(token(), validDraft({ city: "Giza" }));
+    expect(giza.res.status).toBe(422);
+    expect(giza.res.body.fields.selected_package).toMatch(/Cairo prices are for students in Cairo/);
+    const us = await submit(token(), validDraft({ city: "Riyadh", country: "Saudi Arabia", whatsapp_number: "+966 50 123 4567", preferred_payment_method: "wise", selected_package: "us-single" }));
+    expect(us.res.status).toBe(422);
+    expect(ctx.store.data.size).toBe(0);
+
+    const { res } = await submit(token(), validDraft({ city: "Giza", selected_package: "help" }));
+    expect(res.status).toBe(201);
+    const a = await app(res.body.application_id);
+    expect(a!.selected_package_price_snapshot).toBeNull();
+    expect(a!.review_flags).toContain("pricing_quote_needed");
+  });
+
   it("rejects invalid input before writing anything", async () => {
     const { res } = await submit(token(), validDraft({ full_name: "", email: "nope", whatsapp_number: "" }));
     expect(res.status).toBe(422);
@@ -154,7 +178,9 @@ describe("POST /api/applications", () => {
   });
 
   it("rejects Vodafone Cash outside Egypt, honeypot submissions, bad tokens, and non-JSON bodies", async () => {
-    expect((await submit(token(), validDraft({ country: "United Kingdom", whatsapp_number: "+44 7700 900123" }))).res.status).toBe(422);
+    const uk = await submit(token(), validDraft({ country: "United Kingdom", whatsapp_number: "+44 7700 900123", selected_package: "help" }));
+    expect(uk.res.status).toBe(422);
+    expect(uk.res.body.fields.preferred_payment_method).toMatch(/Vodafone Cash/);
     expect((await call("POST", "/api/applications", { application: validDraft(), access_token: token(), website: "x" })).status).toBe(400);
     expect((await call("POST", "/api/applications", { application: validDraft(), access_token: "short" })).status).toBe(400);
     const form = await handleApiRequest(

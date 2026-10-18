@@ -73,8 +73,9 @@ const Privacy = () => {
             ]}
           />
           <p>
-            <strong className="font-medium">When you use the contact form:</strong> your name, email, WhatsApp number, level, goals, and
-            message.
+            <strong className="font-medium">When you use the contact form:</strong> your name, email and/or WhatsApp number, level, goals,
+            and message. When you ask for pricing or a consultation, also the type of request, your country, your city or region, your
+            preferred currency, and how often you'd like lessons.
           </p>
           <p>
             <strong className="font-medium">Technical information:</strong> our hosting provider processes your IP address to deliver the

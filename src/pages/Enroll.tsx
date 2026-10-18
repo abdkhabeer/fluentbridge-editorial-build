@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import { findPlan, isKnownPackageId } from "@/data/pricing";
+import { findPlan, getRegion, isKnownPackageId, regionOfPackage } from "@/data/pricing";
 import type { StudentAssessmentState, StudentResult } from "@/lib/enrollment/apiTypes";
 import { ApiError, newAccessToken, studentApi } from "@/lib/enrollment/client";
 import { paymentMethodsFor } from "@/lib/enrollment/options";
@@ -77,12 +77,17 @@ const Enroll = () => {
     setSearchParams({}, { replace: true });
     if (!isKnownPackageId(pkg) || funnel.submitted) return;
     const track = findPlan(pkg)?.track.id;
+    // The card's location fills in an empty country (and "Cairo" for Cairo prices); the student can still change it.
+    const region = regionOfPackage(pkg);
+    const country = region ? getRegion(region).country : "";
     setFunnel((f) => ({
       ...f,
       draft: {
         ...f.draft,
         selected_package: pkg,
         lesson_format: track === "group" ? "small_group" : track ? "one_on_one" : f.draft.lesson_format,
+        ...(country && !f.draft.country ? { country } : {}),
+        ...(region === "cairo" && !f.draft.country && !f.draft.city ? { city: "Cairo" } : {}),
       },
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps

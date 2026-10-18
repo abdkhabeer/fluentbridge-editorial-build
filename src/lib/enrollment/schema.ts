@@ -3,7 +3,7 @@
 // Relative imports only: this file is bundled into Netlify Functions.
 
 import { z } from "zod";
-import { isKnownPackageId, findPlan, trialLesson, HELP_CHOOSING_PACKAGE } from "../../data/pricing";
+import { isKnownPackageId, findPlan, trialLesson, HELP_CHOOSING_PACKAGE, packageLocationError } from "../../data/pricing";
 import { COUNTRIES } from "./countries";
 import {
   DAYS,
@@ -186,7 +186,13 @@ export const validateStep = (step: number, draft: EnrollmentDraft): FieldErrors 
   const schema = STEP_SCHEMAS[step];
   if (!schema) return {};
   const r = schema.safeParse(draft);
-  return r.success ? {} : issuesToErrors(r.error.issues);
+  const errors = r.success ? {} : issuesToErrors(r.error.issues);
+  if (step === 2 && !errors.selected_package) {
+    const country = draft.country === "Other" ? draft.country_other : draft.country;
+    const location = packageLocationError(draft.selected_package, country, draft.city);
+    if (location) errors.selected_package = location;
+  }
+  return errors;
 };
 
 export type NormalizedApplication = {
@@ -235,6 +241,9 @@ export const parseApplication = (input: unknown): ParseResult => {
   const wa = checkPhone(p.whatsapp_number, country, { mobile: true });
   const alt = p.alternative_phone.trim() ? checkPhone(p.alternative_phone, country, { mobile: false }) : null;
   if (!wa.ok || (alt && !alt.ok)) return { ok: false, errors: { whatsapp_number: "Please check your phone numbers." } };
+
+  const location = packageLocationError(lessons.data.selected_package, country, p.city);
+  if (location) return { ok: false, errors: { selected_package: location } };
 
   if (payment.data.preferred_payment_method === "vodafone_cash" && !isEgypt(country) && !wa.e164.startsWith("+20")) {
     return { ok: false, errors: { preferred_payment_method: "Vodafone Cash is only available for students in Egypt." } };

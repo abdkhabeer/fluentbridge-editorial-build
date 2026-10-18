@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import { formatEgp } from "@/data/pricing";
+import { describeSnapshot, formatMoney, snapshotPrice } from "@/data/pricing";
 import {
   CATEGORY_LABELS,
   CEFR_LEVELS,
@@ -293,6 +293,7 @@ const Detail = ({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
   const app = lead.application;
   const a = lead.assessment;
   const snap = app.selected_package_price_snapshot;
+  const quoted = snap && snapshotPrice(snap);
   const rubricComplete = WRITING_RUBRIC.every((c) => Number.isInteger(rubric[c.id]));
   const canScoreWriting = a.status === "completed" && (a.writing.status === "submitted" || a.writing.status === "scored");
 
@@ -430,14 +431,8 @@ const Detail = ({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
             <Row label="Format">{labelFor(LESSON_FORMATS, app.lesson_format)}</Row>
             {app.lesson_format === "small_group" && <Row label="Group">{labelFor(GROUP_STATUSES, app.group_status ?? "")}</Row>}
             <Row label="Per week">{labelFor(WEEKLY_FREQUENCIES, app.preferred_classes_per_week)}</Row>
-            <Row label="Package">
-              {snap
-                ? `${snap.track_heading ? `${snap.track_heading}, ` : ""}${snap.title}: ${formatEgp(snap.price_egp!)}${snap.per_student ? " per student" : ""}${
-                    snap.validity_days ? `, valid ${snap.validity_days} days` : ""
-                  }`
-                : "Needs help choosing"}
-            </Row>
-            <Row label="Quoted price">{snap?.price_egp != null && `${formatEgp(snap.price_egp)} (snapshot at submission)`}</Row>
+            <Row label="Package">{snap ? describeSnapshot(snap) : "Needs help choosing"}</Row>
+            <Row label="Quoted price">{quoted && `${formatMoney(quoted.amount, quoted.currency)}${snap?.billing === "monthly" ? " per month" : ""} (snapshot at submission)`}</Row>
             <Row label="Payment">{labelFor(PAYMENT_METHODS, app.preferred_payment_method)}</Row>
             <Row label="Days">{app.preferred_days.map((d) => labelFor(DAYS, d)).join(", ")}</Row>
             <Row label="Time of day">{app.preferred_time_of_day.map((t) => labelFor(TIMES_OF_DAY, t)).join(", ")}</Row>
