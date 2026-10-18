@@ -54,6 +54,22 @@ test("security headers allow the site to work without CSP violations", async ({ 
   await page.waitForTimeout(500);
   expect(await violations()).toEqual([]);
 
+  // Netlify's deploy-preview toolbar iframe (app.netlify.com) must be allowed; any other frame stays blocked.
+  const frameCheck = async (src: string) =>
+    page.evaluate(async (s) => {
+      const before = (window as unknown as { __csp: string[] }).__csp.length;
+      const f = document.createElement("iframe");
+      f.src = s;
+      document.body.appendChild(f);
+      await new Promise((r) => setTimeout(r, 300));
+      f.remove();
+      return (window as unknown as { __csp: string[] }).__csp.slice(before);
+    }, src);
+  expect(await frameCheck("https://app.netlify.com/cdp/")).toEqual([]);
+  expect((await frameCheck("https://example.com/")).join(" ")).toContain("frame-src");
+  (await page.evaluate(() => ((window as unknown as { __csp: string[] }).__csp.length = 0)));
+  consoleCsp.length = 0;
+
   for (const path of ["/enroll", "/privacy", "/instructor"]) {
     await page.goto(path);
     await page.waitForLoadState("networkidle");
