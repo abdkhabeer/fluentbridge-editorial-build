@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const videos = ["/videos/hero1.mp4", "/videos/hero2.mp4", "/videos/hero3.mp4"];
 
@@ -106,6 +107,12 @@ const Hero = () => {
               Explore Lessons
             </a>
           </div>
+          <p className="mt-6 text-sm text-warm-white/80">
+            Not sure of your level?{" "}
+            <Link to="/enroll" className="text-warm-white underline underline-offset-4 hover:opacity-80">
+              Take the free placement test
+            </Link>
+          </p>
         </motion.div>
 
         <motion.div

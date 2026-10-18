@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import AnimatedSection from "./AnimatedSection";
 import { toast } from "sonner";
 
@@ -7,16 +8,35 @@ const ContactSection = () => {
     name: "", email: "", whatsapp: "", level: "", goals: "", message: "",
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
+
+  // Netlify Forms: success is only shown once Netlify confirms the submission (2xx).
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-      const formData = new FormData(e.target as HTMLFormElement);
-      await fetch("/", {
+    if (sendingRef.current) return;
+    sendingRef.current = true;
+    setSending(true);
+    const body = new URLSearchParams();
+    new FormData(e.currentTarget).forEach((value, key) => {
+      if (typeof value === "string") body.append(key, value);
+    });
+    try {
+      const res = await fetch("/", {
         method: "POST",
-        headers: {"Content-Type": "application/x-www-form-urlencoded "},
-        body: new URLSearchParams(formData as any).toString(),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
       });
-    toast.success("Thank you! I'll be in touch within 24 hours.");
-    setForm({ name: "", email: "", whatsapp: "", level: "", goals: "", message: "" });
+      if (!res.ok) throw new Error(`Form submission failed (${res.status})`);
+      toast.success("Thank you! I'll be in touch within 24 hours.");
+      setForm({ name: "", email: "", whatsapp: "", level: "", goals: "", message: "" });
+    } catch {
+      // Keep what the visitor typed so they can retry.
+      toast.error("Sorry, your message wasn't sent. Please try again, or message us on WhatsApp at +1 (571) 326-5041.");
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
+    }
   };
 
   const inputClass =
@@ -118,10 +138,19 @@ const ContactSection = () => {
               />
               <button
                 type="submit"
-                className="text-label w-full px-8 py-4 bg-foreground text-background hover:bg-navy transition-colors"
+                disabled={sending}
+                aria-busy={sending}
+                className="text-label w-full px-8 py-4 bg-foreground text-background hover:bg-navy transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Send Message
+                {sending ? "Sending…" : "Send Message"}
               </button>
+              <p className="text-xs text-muted-foreground">
+                We use your details only to reply to you and discuss lessons. See our{" "}
+                <Link to="/privacy" className="underline underline-offset-2 hover:text-foreground">
+                  privacy policy
+                </Link>
+                .
+              </p>
             </form>
           </AnimatedSection>
         </div>

@@ -1,14 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Link } from "react-router-dom";
 
 const navLinks = [
   { label: "Home", href: "#hero" },
   { label: "Lessons", href: "#services" },
   { label: "About", href: "#about" },
   { label: "Pricing", href: "#pricing" },   
-  { label: "FAQ", href: "#faq" },
-  { label: "Contact", href: "#contact" },
 ];
 
 const scrollToHash = (hash: string) => {
@@ -40,27 +39,35 @@ const Header = () => {
       }`}
     >
       <div className="container-editorial flex items-center justify-between h-20">
-        <a href="#hero" className={`font-serif text-2xl tracking-tight transition-colors duration-500 ${scrolled ? "text-foreground" : "text-warm-white"}`}>
+        <a href="#hero" className={`shrink-0 font-serif text-2xl tracking-tight transition-colors duration-500 ${scrolled ? "text-foreground" : "text-warm-white"}`}>
           FluentBridges
         </a>
 
-        <nav className="hidden md:flex items-center gap-10">
+        <nav className="hidden lg:flex items-center gap-6 min-[1152px]:gap-10 ml-8">
           {navLinks.map((link) => (
             <a
               key={link.href}
               href={link.href}
               onClick={(e) => { e.preventDefault(); scrollToHash(link.href); }}
-              className={`text-label transition-colors duration-300 hover:opacity-70 ${
+              className={`whitespace-nowrap text-label transition-colors duration-300 hover:opacity-70 ${
                 scrolled ? "text-foreground" : "text-warm-white"
               }`}
             >
               {link.label}
             </a>
           ))}
+          <Link
+            to="/enroll"
+            className={`whitespace-nowrap text-label transition-colors duration-300 hover:opacity-70 ${
+              scrolled ? "text-foreground" : "text-warm-white"
+            }`}
+          >
+            Placement Test
+          </Link>
           <a
             href="#contact"
             onClick={(e) => { e.preventDefault(); scrollToHash("#contact"); }}
-            className={`text-label px-6 py-2.5 border transition-all duration-300 hover:opacity-80 ${
+            className={`whitespace-nowrap text-label px-6 py-2.5 border transition-all duration-300 hover:opacity-80 ${
               scrolled
                 ? "border-foreground text-foreground hover:bg-foreground hover:text-background"
                 : "border-warm-white text-warm-white hover:bg-warm-white/10"
@@ -72,7 +79,7 @@ const Header = () => {
 
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
-          className={`md:hidden transition-colors ${scrolled ? "text-foreground" : "text-warm-white"}`}
+          className={`lg:hidden transition-colors ${scrolled ? "text-foreground" : "text-warm-white"}`}
           aria-label="Toggle menu"
         >
           {mobileOpen ? <X size={24} /> : <Menu size={24} />}
@@ -85,7 +92,7 @@ const Header = () => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden bg-background border-b border-border overflow-hidden"
+            className="lg:hidden bg-background border-b border-border overflow-hidden"
           >
             <div className="container-editorial py-8 flex flex-col gap-6">
               {navLinks.map((link) => (
@@ -98,6 +105,9 @@ const Header = () => {
                   {link.label}
                 </a>
               ))}
+              <Link to="/enroll" className="text-label text-foreground">
+                Placement Test
+              </Link>
               <a
                 href="#contact"
                 onClick={(e) => { e.preventDefault(); setMobileOpen(false); setTimeout(() => scrollToHash("#contact"), 300); }}

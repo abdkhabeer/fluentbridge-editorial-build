@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 const navLinks = [
   { label: "Home", href: "#hero" },
   { label: "Lessons", href: "#services" },
@@ -49,6 +51,10 @@ const Footer = () => (
       <div className="border-t border-primary-foreground/10 pt-8 text-center">
         <p className="text-xs text-primary-foreground/40">
           © {new Date().getFullYear()} FluentBridges. All rights reserved.
+          <span className="mx-2">·</span>
+          <Link to="/privacy" className="underline-offset-4 hover:underline hover:text-primary-foreground">
+            Privacy Policy
+          </Link>
         </p>
       </div>
     </div>

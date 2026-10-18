@@ -1,0 +1,9 @@
+# Netlify build settings (file-based, so they are reviewed with the code).
+# Dependencies are installed with npm from package-lock.json.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[functions]
+  directory = "netlify/functions"

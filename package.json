@@ -10,10 +10,13 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.server.json && tsc -p tsconfig.node.json"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
+    "@netlify/blobs": "^11.1.4",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
     "@radix-ui/react-aspect-ratio": "^1.1.7",

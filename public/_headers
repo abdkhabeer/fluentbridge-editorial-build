@@ -1,0 +1,15 @@
+# Security headers for every page (Netlify custom headers).
+# Allowed external origins: Google Fonts (stylesheet + font files) only.
+# Inline styles are allowed because UI libraries (e.g. toast notifications)
+# inject <style> tags; scripts are limited to this site's own files.
+# frame-src allows only app.netlify.com: on deploy previews Netlify injects its
+# preview toolbar (/.netlify/scripts/cdp), which embeds an app.netlify.com
+# iframe. Blocking it renders a broken gray box at the bottom of the page.
+# Production deploys don't inject the toolbar. frame-ancestors still forbids
+# other sites from framing this one.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self'; connect-src 'self'; frame-src https://app.netlify.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
