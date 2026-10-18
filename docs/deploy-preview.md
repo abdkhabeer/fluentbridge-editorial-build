@@ -61,7 +61,8 @@ Use made-up test data only.
 **Existing site**
 
 13. Submit the contact form with test data. A success toast appears, and the entry shows up under Netlify Forms.
-14. Check that the pricing buttons open `/enroll` with the right package preselected, that `/privacy` loads from the footer on mobile, and that the browser console shows no CSP errors.
+14. In Pricing, switch between every location. Cairo, Saudi Arabia and the US show their prices; the others show a request button that opens the contact form with the request type and country filled in. Send one UK pricing request with test data (WhatsApp only) and confirm it appears under Netlify Forms with `request_type`, `country` and `currency`.
+15. Check that the pricing buttons open `/enroll` with the right package preselected, that `/privacy` loads from the footer on mobile, and that the browser console shows no CSP errors.
 
 ## 4. After testing
 

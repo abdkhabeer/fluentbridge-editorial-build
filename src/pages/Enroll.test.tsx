@@ -92,6 +92,64 @@ describe("enrollment funnel", () => {
     expect(saved.draft.lesson_format).toBe("small_group");
   });
 
+  it("a pricing link from another location fills in an empty country, and Cairo for Cairo prices", () => {
+    renderAt("/enroll?package=ksa-monthly-3");
+    let saved = JSON.parse(localStorage.getItem("fb-enrollment-v1")!);
+    expect(saved.draft).toMatchObject({ selected_package: "ksa-monthly-3", lesson_format: "one_on_one", country: "Saudi Arabia", city: "" });
+    expect(screen.getByLabelText(/^Country of residence/)).toHaveValue("Saudi Arabia");
+    localStorage.clear();
+    renderAt("/enroll?package=student-8");
+    saved = JSON.parse(localStorage.getItem("fb-enrollment-v1")!);
+    expect(saved.draft).toMatchObject({ country: "Egypt", city: "Cairo" });
+  });
+
+  const toLessons = (country: string, city: string, phone: string) => {
+    type(/^Full name/, "Sara Ali");
+    type(/^Country of residence/, country);
+    type(/^City/, city);
+    type(/^Email address/, "sara@example.com");
+    type(/^WhatsApp number/, phone);
+    cont();
+    pick(/^General English/);
+    pick(/^Beginner$/);
+    cont();
+    pick(/^One-on-one lessons/);
+  };
+
+  it("shows students in Saudi Arabia only their SAR prices", () => {
+    renderAt("/enroll");
+    toLessons("Saudi Arabia", "Riyadh", "+966 50 123 4567");
+    expect(screen.getByText(/Pricing for Students in Saudi Arabia, from your location/)).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^Single Lesson.*40 SAR/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^3 Classes per Week.*Monthly plan.*450 SAR per month.*12 classes/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^5 Classes per Week.*680 SAR per month.*20 classes/ })).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /EGP|USD/ })).toBeNull();
+    expect(screen.queryByRole("radio", { name: /^Trial lesson/ })).toBeNull();
+    pick(/^Twice per week/);
+    pick(/^3 Classes per Week/);
+    expect(screen.getByText(/This monthly plan includes 3 classes per week/)).toBeInTheDocument();
+  });
+
+  it("shows students outside Cairo the pricing request instead of Cairo prices", () => {
+    renderAt("/enroll");
+    toLessons("Egypt", "Giza", "01012345678");
+    expect(screen.getByText(/Looking for English lessons outside Cairo\? Contact us for pricing/)).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /EGP/ })).toBeNull();
+    expect(screen.getByRole("radio", { name: /^I need help choosing/ })).toBeInTheDocument();
+  });
+
+  it("warns when a preselected package doesn't match the student's location", () => {
+    renderAt("/enroll?package=us-monthly-5");
+    toLessons("Germany", "Berlin", "+49 151 12345678");
+    expect(screen.getByText(/This option is priced for students in the United States/)).toBeInTheDocument();
+    pick(/^Twice per week/);
+    cont();
+    expect(screen.getByRole("heading", { name: "Your lessons" })).toBeInTheDocument();
+    pick(/^I need help choosing/);
+    cont();
+    expect(screen.getByRole("heading", { name: "Payment & schedule" })).toBeInTheDocument();
+  });
+
   it("distinguishes weekly frequency from package size and warns on a mismatch", () => {
     renderAt("/enroll");
     type(/^Full name/, "Mona Adel");

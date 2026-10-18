@@ -10,7 +10,7 @@
 import type { OptionId } from "@/lib/assessment/questions";
 import { emptyDraft, type EnrollmentDraft } from "./schema";
 
-const KEY = "fb-enrollment-v1";
+import { ENROLLMENT_STORAGE_KEY as KEY } from "./storageKey";
 
 export type Phase = "details" | "review" | "test" | "results";
 

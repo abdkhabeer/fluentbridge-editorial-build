@@ -133,3 +133,44 @@ test("pricing card links preselect the package", async ({ page }) => {
   expect(saved.draft.selected_package).toBe("group-8");
   expect(saved.draft.lesson_format).toBe("small_group");
 });
+
+test("location-based pricing: switching locations, mobile layout, and pricing requests", async ({ page }) => {
+  await page.goto("/");
+  const pricing = page.locator("#pricing");
+  await pricing.scrollIntoViewIfNeeded();
+  await expect(page.getByRole("heading", { name: "Special Pricing for Students in Cairo" })).toBeVisible();
+  await expect(pricing.getByText("2,200", { exact: true })).toBeVisible();
+  await expectNoHorizontalScroll(page);
+  await shot(page, "11-pricing-cairo");
+
+  // Keyboard: the selector is a radio group, so arrow keys move between locations.
+  await page.getByRole("radio", { name: "Cairo, Egypt" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("radio", { name: "Saudi Arabia" })).toBeChecked();
+  await expect(page.getByRole("heading", { name: "Pricing for Students in Saudi Arabia" })).toBeVisible();
+  for (const price of ["40", "450", "680"]) await expect(pricing.getByText(price, { exact: true })).toBeVisible();
+  await expect(pricing.getByText("2,200", { exact: true })).toHaveCount(0);
+  await expectNoHorizontalScroll(page);
+  await shot(page, "12-pricing-ksa");
+
+  await page.getByText("United States", { exact: true }).click();
+  for (const price of ["$10", "$120", "$180"]) await expect(pricing.getByText(price, { exact: true })).toBeVisible();
+  await expectNoHorizontalScroll(page);
+
+  await page.getByText("United Kingdom", { exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Based in the UK?" })).toBeVisible();
+  await expectNoHorizontalScroll(page);
+  await shot(page, "13-pricing-uk");
+  await page.getByRole("link", { name: "Request UK Pricing" }).click();
+  await expect(page.getByLabel("Name", { exact: true })).toBeFocused();
+  await expect(page.getByLabel("Country")).toHaveValue("United Kingdom");
+  await expect(page.getByLabel("Preferred currency")).toHaveValue("GBP");
+  await expect(page.locator("#contact").getByText("UK pricing in GBP")).toBeVisible();
+  await expectNoHorizontalScroll(page);
+  await shot(page, "14-contact-uk-request");
+
+  // The choice survives a reload.
+  await page.goto("/");
+  await expect(page.getByRole("radio", { name: "United Kingdom" })).toBeChecked();
+});

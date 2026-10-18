@@ -1,10 +1,13 @@
 import { useMemo } from "react";
 import {
+  BILLING_PERIOD_WEEKS,
   HELP_CHOOSING_PACKAGE,
   PACKAGE_VALIDITY_DAYS,
-  formatEgp,
+  formatMoney,
+  getRegion,
+  packageLocationError,
   perLessonPrice,
-  tracks,
+  regionForLocation,
   trialLesson,
   type Plan,
 } from "@/data/pricing";
@@ -263,22 +266,32 @@ export const GoalsStep = ({ draft, update, errors }: StepProps) => {
 // ── Step 3 ──
 
 const planDescription = (plan: Plan) => {
-  const parts = [
-    plan.lessons === 1 ? "1 lesson, 60 minutes" : `${plan.lessons} lessons`,
-    `${formatEgp(plan.priceEgp)}${plan.perStudent ? " per student" : ""}`,
-  ];
+  const price = formatMoney(plan.amount, plan.currency);
+  if (plan.billing === "monthly") {
+    return [`Monthly plan`, `${price} per month`, `${plan.lessons} classes per ${BILLING_PERIOD_WEEKS}-week billing period`].join(" · ");
+  }
+  const parts = [plan.lessons === 1 ? "1 lesson, 60 minutes" : `${plan.lessons} lessons`, `${price}${plan.perStudent ? " per student" : ""}`];
   if (plan.lessons > 1) {
-    parts.push(`${formatEgp(perLessonPrice(plan))} per lesson`, `valid for ${PACKAGE_VALIDITY_DAYS} days`);
+    parts.push(`${formatMoney(perLessonPrice(plan), plan.currency)} per lesson`, `valid for ${PACKAGE_VALIDITY_DAYS} days`);
   }
   return parts.join(" · ");
 };
 
 export const LessonsStep = ({ draft, update, errors }: StepProps) => {
+  const country = residenceCountry(draft);
+  // Prices come from the country and city on step 1, never from the visitor's IP.
+  const region = getRegion(regionForLocation(country, draft.city));
+  const priced = region.tracks.length > 0;
   const suggested = suggestedTrackForGoal(draft.primary_learning_goal as never);
-  const visibleTracks = tracks.filter((t) =>
+  const visibleTracks = region.tracks.filter((t) =>
     draft.lesson_format === "small_group" ? t.id === "group" : draft.lesson_format === "one_on_one" ? t.id !== "group" : true,
   );
   const note = frequencyPackageNote(draft.selected_package, draft.preferred_classes_per_week);
+  // A package chosen on the pricing page for another location (or before the country changed).
+  const locationNote = errors.selected_package ? null : packageLocationError(draft.selected_package, country, draft.city);
+  const helpDescription = priced
+    ? "Your instructor will recommend a package after your test."
+    : "Your instructor will recommend a plan and send pricing in your currency after your test.";
 
   return (
     <div className="space-y-10">
@@ -296,7 +309,7 @@ export const LessonsStep = ({ draft, update, errors }: StepProps) => {
             })
           }
         />
-        {draft.lesson_format === "small_group" && (
+        {draft.lesson_format === "small_group" && region.tracks.some((t) => t.id === "group") && (
           <div className="mt-4">
             <Notice>Small-group prices are per student, and each group has 2–4 students. If you don't have a group yet, your instructor can help.</Notice>
           </div>
@@ -332,10 +345,25 @@ export const LessonsStep = ({ draft, update, errors }: StepProps) => {
 
       <Group
         legend="Which package interests you?"
-        description={`These are the current Fluent Bridges prices. Packages are valid for ${PACKAGE_VALIDITY_DAYS} days from purchase. You won't be charged now.`}
+        description={
+          priced
+            ? `${region.heading}, from your location on the first step.${region.id === "cairo" ? ` Packages are valid for ${PACKAGE_VALIDITY_DAYS} days from purchase.` : ""} You won't be charged now.`
+            : "You won't be charged now."
+        }
         error={errors.selected_package}
       >
         <div className="space-y-8">
+          {!priced && (
+            <Notice>
+              {region.inquiry.heading} {region.inquiry.body}{" "}
+              {region.id === "egypt-other" && "If you live in Cairo, enter “Cairo” as your city on the first step. "}
+              Choose “I need help choosing” below.
+            </Notice>
+          )}
+          {priced && visibleTracks.length === 0 && (
+            <Notice>Small-group lessons aren't priced for your location yet. Choose “I need help choosing” and your instructor will help.</Notice>
+          )}
+          {locationNote && <Notice tone="warning">{locationNote}</Notice>}
           {visibleTracks.map((track) => (
             <div key={track.id}>
               <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -354,16 +382,20 @@ export const LessonsStep = ({ draft, update, errors }: StepProps) => {
             </div>
           ))}
           <div>
-            <h3 className="font-serif text-lg text-foreground mb-3">Not ready to choose?</h3>
+            <h3 className="font-serif text-lg text-foreground mb-3">{priced ? "Not ready to choose?" : "Pricing for your location"}</h3>
             <RadioCards
               name="selected_package"
               options={[
-                {
-                  value: trialLesson.id,
-                  label: `Trial lesson: ${trialLesson.price}`,
-                  description: "Credited toward your first 8- or 12-lesson package if you enroll.",
-                },
-                { value: HELP_CHOOSING_PACKAGE, label: "I need help choosing", description: "Your instructor will recommend a package after your test." },
+                ...(region.trial
+                  ? [
+                      {
+                        value: trialLesson.id,
+                        label: `Trial lesson: ${trialLesson.price}`,
+                        description: "Credited toward your first 8- or 12-lesson package if you enroll.",
+                      },
+                    ]
+                  : []),
+                { value: HELP_CHOOSING_PACKAGE, label: "I need help choosing", description: helpDescription },
               ]}
               value={draft.selected_package}
               invalid={!!errors.selected_package}

@@ -8,7 +8,7 @@ const draft = (over: Partial<EnrollmentDraft> = {}): EnrollmentDraft => ({
   ...emptyDraft(),
   full_name: "Karim Hassan",
   country: "Egypt",
-  city: "Giza",
+  city: "Cairo",
   email: "karim@example.com",
   whatsapp_number: "01112345678",
   primary_learning_goal: "general",
@@ -94,6 +94,43 @@ describe("lesson format, frequency, and package", () => {
     expect(reviewFlagsFor({ ...draft({ selected_package: "student-8", lesson_format: "one_on_one", preferred_classes_per_week: "1" }) })).toContain(
       "frequency_package_mismatch",
     );
+  });
+});
+
+describe("location-based packages", () => {
+  const ksa = { country: "Saudi Arabia", city: "Riyadh", whatsapp_number: "+966 50 123 4567", lesson_format: "one_on_one", group_status: "" };
+
+  it("offers Cairo prices only to students in Cairo", () => {
+    expect(validateStep(2, draft({ city: "Giza" })).selected_package).toMatch(/Cairo prices are for students in Cairo/);
+    const r = parseApplication(draft({ city: "Alexandria" }));
+    expect(r.ok).toBe(false);
+    expect(r.errors?.selected_package).toMatch(/Cairo prices/);
+    expect(parseApplication(draft({ city: "Alexandria", selected_package: "help" })).ok).toBe(true);
+    expect(parseApplication(draft({ city: "Giza", selected_package: "trial" })).ok).toBe(false);
+  });
+
+  it("accepts a location's own plans and rejects another location's", () => {
+    expect(validateStep(2, draft({ ...ksa, selected_package: "ksa-monthly-3" }))).toEqual({});
+    expect(parseApplication(draft({ ...ksa, selected_package: "ksa-monthly-5" })).ok).toBe(true);
+    expect(validateStep(2, draft({ ...ksa, selected_package: "us-monthly-3" })).selected_package).toMatch(/United States/);
+    expect(validateStep(2, draft({ ...ksa, selected_package: "student-8" })).selected_package).toMatch(/in Cairo/);
+    expect(parseApplication(draft({ ...ksa, selected_package: "uk-single" })).ok).toBe(false);
+  });
+
+  it("flags applications from locations without published prices for a quote", () => {
+    const base = { ...draft(), additional_learning_goals: [] as string[] };
+    expect(reviewFlagsFor({ ...base, country: "Egypt", city: "Giza", selected_package: "help" })).toContain("pricing_quote_needed");
+    expect(reviewFlagsFor({ ...base, country: "Germany", city: "Berlin", selected_package: "help" })).toContain("pricing_quote_needed");
+    expect(reviewFlagsFor({ ...base, country: "Egypt", city: "Cairo" })).not.toContain("pricing_quote_needed");
+    expect(reviewFlagsFor({ ...base, country: "Saudi Arabia", city: "Riyadh" })).not.toContain("pricing_quote_needed");
+  });
+
+  it("compares weekly frequency with a monthly plan's schedule", () => {
+    expect(frequencyPackageNote("us-monthly-3", "2")).toMatch(/includes 3 classes per week \(12 per month\)/);
+    expect(frequencyPackageNote("us-monthly-3", "3")).toBeNull();
+    expect(frequencyPackageNote("ksa-monthly-5", "3")).toMatch(/5 classes per week/);
+    expect(frequencyPackageNote("ksa-monthly-5", "4_plus")).toBeNull();
+    expect(frequencyPackageNote("ksa-single", "1")).toBeNull();
   });
 });
 
