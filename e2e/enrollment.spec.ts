@@ -174,3 +174,16 @@ test("location-based pricing: switching locations, mobile layout, and pricing re
   await page.goto("/");
   await expect(page.getByRole("radio", { name: "United Kingdom" })).toBeChecked();
 });
+
+test("about section shows the instructor photo without overflow", async ({ page }) => {
+  await page.goto("/#about");
+  const img = page.getByRole("img", { name: "Abdul Khabeer, Fluent Bridges English coach" });
+  await img.scrollIntoViewIfNeeded();
+  await expect(page.getByRole("heading", { name: "Meet Your English Coach" })).toBeVisible();
+  await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth)).toBe(259);
+  const box = (await img.boundingBox())!;
+  expect(box.width).toBeLessThanOrEqual(300);
+  expect(Math.abs(box.height / box.width - 452 / 259)).toBeLessThan(0.02); // uncropped, not distorted
+  await expectNoHorizontalScroll(page);
+  await shot(page, "15-about");
+});

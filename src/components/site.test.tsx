@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { readFileSync } from "node:fs";
 import { MemoryRouter } from "react-router-dom";
 import { Toaster } from "sonner";
+import AboutSection from "./AboutSection";
 import ContactSection from "./ContactSection";
 import Footer from "./Footer";
 import PricingSection from "./PricingSection";
@@ -81,6 +82,18 @@ describe("contact form", () => {
     vi.stubGlobal("fetch", vi.fn());
     renderContact();
     expect(screen.getByRole("link", { name: "privacy policy" })).toHaveAttribute("href", "/privacy");
+  });
+});
+
+describe("about section", () => {
+  it("introduces the coach with the local instructor photo and descriptive alt text", () => {
+    render(<AboutSection />);
+    expect(screen.getByRole("heading", { name: "Meet Your English Coach" })).toBeInTheDocument();
+    expect(screen.getByText("CELTA-Certified English Teacher")).toBeInTheDocument();
+    const img = screen.getByRole("img", { name: "Abdul Khabeer, Fluent Bridges English coach" });
+    expect(img).toHaveAttribute("src", "/fluentbridges-instructor.jpg");
+    expect(img).toHaveAttribute("width", "259");
+    expect(img).toHaveAttribute("height", "452");
   });
 });
 
