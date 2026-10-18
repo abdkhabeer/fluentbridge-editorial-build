@@ -25,7 +25,7 @@ const faqs = [
   },
   {
     q: "Do you teach beginners?",
-    a: "I primarily work with intermediate to advanced learners who want to refine their fluency and confidence. If you have basic English foundations, we can discuss whether my approach is right for you.",
+    a: "Yes. Most of my students are intermediate to advanced learners refining their fluency and confidence, but beginners are welcome too. Take the free placement test and I'll recommend the right starting point and lesson plan for your level.",
   },
   {
     q: "How long are lessons?",

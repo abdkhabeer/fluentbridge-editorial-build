@@ -1,206 +1,9 @@
+import { Link } from "react-router-dom";
 import AnimatedSection from "./AnimatedSection";
+import { tracks, trialLesson, paymentMethodsDisplay, type Plan } from "@/data/pricing";
 
-type Plan = {
-  label: string;
-  title: string;
-  price: string;
-  unit: string;
-  duration: string;
-  description: string;
-  features: string[];
-  cta: string;
-  highlight: boolean;
-};
-
-type Track = {
-  id: string;
-  heading: string;
-  blurb: string;
-  plans: Plan[];
-};
-
-const tracks: Track[] = [
-  {
-    id: "student",
-    heading: "Egyptian Student & General English",
-    blurb:
-      "Affordable one-on-one coaching for Egyptian students and anyone building everyday fluency and confidence.",
-    plans: [
-      {
-        label: "Student Rate",
-        title: "Single Lesson",
-        price: "200",
-        unit: "EGP",
-        duration: "60 minutes",
-        description: "One-on-one instruction tailored to your goals. No package required.",
-        features: ["Fully personalized lesson", "Feedback after each session"],
-        cta: "Book a Lesson",
-        highlight: false,
-      },
-      {
-        label: "Most Popular",
-        title: "8 Lessons",
-        price: "1,500",
-        unit: "EGP",
-        duration: "187.50 EGP per lesson",
-        description: "Consistent weekly practice for real, measurable progress.",
-        features: ["Save 100 EGP", "Priority scheduling", "Monthly progress review"],
-        cta: "Get Started",
-        highlight: true,
-      },
-      {
-        label: "Best Value",
-        title: "12 Lessons",
-        price: "2,200",
-        unit: "EGP",
-        duration: "≈ 183.33 EGP per lesson",
-        description: "Long-term practice at the lowest per-lesson rate.",
-        features: ["Save 200 EGP", "Priority scheduling", "One free make-up lesson"],
-        cta: "Get Started",
-        highlight: false,
-      },
-    ],
-  },
-  {
-    id: "group",
-    heading: "Small Group English",
-    blurb:
-      "Groups of 2–4 students. All prices below are per student, not per group. Each student pays their own rate.",
-    plans: [
-      {
-        label: "2–4 Students",
-        title: "Single Lesson",
-        price: "150",
-        unit: "EGP per student",
-        duration: "60 minutes · 2–4 students per group",
-        description: "Practice English in a social setting at the most affordable rate.",
-        features: ["150 EGP per student", "Shared speaking practice"],
-        cta: "Arrange a Group",
-        highlight: false,
-      },
-      {
-        label: "Most Popular",
-        title: "8 Lessons",
-        price: "1,100",
-        unit: "EGP per student",
-        duration: "137.50 EGP per lesson, per student",
-        description: "A steady weekly rhythm for a study group, colleagues, or friends.",
-        features: ["Save 100 EGP per student", "Priority scheduling", "Monthly progress review"],
-        cta: "Arrange a Group",
-        highlight: true,
-      },
-      {
-        label: "Best Value",
-        title: "12 Lessons",
-        price: "1,500",
-        unit: "EGP per student",
-        duration: "125 EGP per lesson, per student",
-        description: "The lowest per-lesson rate offered by Fluent Bridges.",
-        features: ["Save 300 EGP per student", "Priority scheduling", "One free make-up lesson"],
-        cta: "Arrange a Group",
-        highlight: false,
-      },
-    ],
-  },
-  {
-    id: "professional",
-    heading: "Professional English",
-    blurb:
-      "For career development, workplace communication, interviews, presentations, and meetings.",
-    plans: [
-      {
-        label: "Professional",
-        title: "Single Lesson",
-        price: "500",
-        unit: "EGP",
-        duration: "60 minutes",
-        description: "Focused coaching built around your role and your career goals.",
-        features: ["Industry-specific vocabulary", "Real materials from your work"],
-        cta: "Book a Lesson",
-        highlight: false,
-      },
-      {
-        label: "Most Popular",
-        title: "8 Lessons",
-        price: "3,600",
-        unit: "EGP",
-        duration: "450 EGP per lesson",
-        description: "A focused block to sharpen how you speak and write at work.",
-        features: ["Save 400 EGP", "Interview & presentation prep", "Priority scheduling"],
-        cta: "Get Started",
-        highlight: true,
-      },
-      {
-        label: "Best Value",
-        title: "12 Lessons",
-        price: "5,100",
-        unit: "EGP",
-        duration: "425 EGP per lesson",
-        description: "Built around a specific role, deadline, or promotion.",
-        features: ["Save 900 EGP", "Fully customized curriculum", "One free make-up lesson"],
-        cta: "Get Started",
-        highlight: false,
-      },
-    ],
-  },
-  {
-    id: "business",
-    heading: "Business English",
-    blurb:
-      "The premium offering, for executives, entrepreneurs, managers, and teams who need advanced English for business.",
-    plans: [
-      {
-        label: "Premium",
-        title: "Single Lesson",
-        price: "900",
-        unit: "EGP",
-        duration: "60 minutes",
-        description: "Advanced business communication, negotiation, and executive presence.",
-        features: ["Tailored to your company", "Feedback after each session"],
-        cta: "Enquire",
-        highlight: false,
-      },
-      {
-        label: "Most Popular",
-        title: "8 Lessons",
-        price: "6,800",
-        unit: "EGP",
-        duration: "850 EGP per lesson",
-        description: "High-intensity coaching for meetings, pitches, and negotiations.",
-        features: ["Save 400 EGP", "Priority scheduling", "Monthly progress review"],
-        cta: "Enquire",
-        highlight: true,
-      },
-      {
-        label: "Best Value",
-        title: "12 Lessons",
-        price: "9,600",
-        unit: "EGP",
-        duration: "800 EGP per lesson",
-        description: "A full programme for sustained executive-level communication.",
-        features: ["Save 1,200 EGP", "Fully customized curriculum", "One free make-up lesson"],
-        cta: "Enquire",
-        highlight: false,
-      },
-    ],
-  },
-];
-
-const addons = [
-  {
-    title: "Trial Lesson",
-    price: "100 EGP / 30 minutes",
-    description:
-      "A relaxed 30-minute first session to assess your level and discuss your goals, not a full 60-minute lesson. The 100 EGP fee is credited toward your first 8- or 12-lesson package if you enroll.",
-  },
-];
-
-const payment = [
-  "Vodafone Cash",
-  "PayPal",
-  "Stripe",
-  "Wise (international students)",
-];
+const addons = [trialLesson];
+const payment = paymentMethodsDisplay;
 
 const PlanCard = ({ plan }: { plan: Plan }) => (
   <div
@@ -278,8 +81,8 @@ const PlanCard = ({ plan }: { plan: Plan }) => (
     </ul>
 
     {/* CTA */}
-    <a
-      href="#contact"
+    <Link
+      to={`/enroll?package=${plan.id}`}
       className={`text-label text-center py-3 px-6 transition-colors ${
         plan.highlight
           ? "bg-background text-foreground hover:bg-sand"
@@ -287,7 +90,7 @@ const PlanCard = ({ plan }: { plan: Plan }) => (
       }`}
     >
       {plan.cta}
-    </a>
+    </Link>
   </div>
 );
 
@@ -301,10 +104,14 @@ const PricingSection = () => (
         <h2 className="text-editorial-lg text-foreground mb-4 max-w-2xl">
           Transparent pricing. No surprises.
         </h2>
-        <p className="text-body-lg text-muted-foreground max-w-xl mb-16">
+        <p className="text-body-lg text-muted-foreground max-w-xl mb-4">
           All lessons are live and fully personalized. Rates depend on the kind of coaching
           you need: small group, Egyptian student and General English, Professional, or
           Business English. Packages are valid for 30 days from purchase.
+        </p>
+        <p className="text-sm text-muted-foreground max-w-xl mb-16">
+          Choosing a package opens a short enrollment form and a free placement test. You won't be charged, and nothing is booked
+          until you confirm with your instructor.
         </p>
       </AnimatedSection>
 
