@@ -73,7 +73,12 @@ export type PricingRegion = {
   /** Payment methods listed on the pricing section. */
   paymentMethods: string[];
   notes: string[];
+  /** A limited-time rate shown under the plan cards. Unset means no founding rate. */
+  foundingRate?: FoundingRate;
 };
+
+/** endsOn is the last day of the rate (YYYY-MM-DD). note is an optional extra sentence. */
+export type FoundingRate = { endsOn: string; note?: string };
 
 export const PACKAGE_VALIDITY_DAYS = 30;
 /** A 4-week plan's billing period: classes per week × 4 weeks. */
@@ -311,6 +316,27 @@ export const PLAN_DISCOUNTS: Record<PlanSize, number> = { 12: 0.05, 20: 0.1 };
  */
 const PLAN_PRICE_OVERRIDES: Partial<Record<HardCurrency, Record<PlanSize, number>>> = { GBP: { 12: 170, 20: 265 } };
 
+/**
+ * Founding rate for the Saudi Arabia, United States and United Kingdom cards, for example
+ * { endsOn: "2026-12-31", note: "Your rate stays the same while your plan continues." }.
+ * Unset by default.
+ */
+export const HARD_CURRENCY_FOUNDING_RATE: FoundingRate | undefined = undefined;
+
+const parseDay = (day: string) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  const d = m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : null;
+  return d && d.toISOString().slice(0, 10) === day ? d : null;
+};
+
+/** "Founding rate until 31 December 2026." plus the note, or null when unset, invalid or past its last day. */
+export const foundingRateLabel = (rate: FoundingRate | undefined, now = new Date()): string | null => {
+  const ends = rate && parseDay(rate.endsOn);
+  if (!rate || !ends || now.toISOString().slice(0, 10) > rate.endsOn) return null;
+  const date = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(ends);
+  return [`Founding rate until ${date}.`, rate.note?.trim()].filter(Boolean).join(" ");
+};
+
 export const planPrice = (currency: HardCurrency, classes: PlanSize) =>
   PLAN_PRICE_OVERRIDES[currency]?.[classes] ?? Math.round(HARD_CURRENCY_LIST_PRICE[currency] * classes * (1 - PLAN_DISCOUNTS[classes]));
 
@@ -394,6 +420,7 @@ const internationalRegion = (id: InternationalTrackId, label: string, country: s
   trial: trialFor(`${id}-trial`, currency, "your first package"),
   paymentMethods: INTERNATIONAL_PAYMENT,
   notes: internationalNotes(currency),
+  foundingRate: HARD_CURRENCY_FOUNDING_RATE,
 });
 
 export const pricingRegions: PricingRegion[] = [

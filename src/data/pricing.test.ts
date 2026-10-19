@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  HARD_CURRENCY_FOUNDING_RATE,
   HARD_CURRENCY_LIST_PRICE,
   PLAN_DISCOUNTS,
   TRIAL_PRICES,
@@ -9,6 +10,7 @@ import {
   displayAmount,
   findPlan,
   formatMoney,
+  foundingRateLabel,
   getRegion,
   inquiryFor,
   isKnownPackageId,
@@ -200,6 +202,25 @@ describe("location matching", () => {
     expect(packageLocationError("ksa-monthly-3", "United States", "Boston")).toMatch(/in Saudi Arabia/);
     expect(packageLocationError("us-single", "United Kingdom", "London")).toMatch(/in the United States/);
     expect(packageLocationError("help", "Monaco", "")).toBeNull();
+  });
+});
+
+describe("founding rate", () => {
+  it("is unset by default", () => {
+    expect(HARD_CURRENCY_FOUNDING_RATE).toBeUndefined();
+    for (const r of pricingRegions) expect(foundingRateLabel(r.foundingRate)).toBeNull();
+  });
+
+  it("reads \"Founding rate until {date}\" with the note, through its last day", () => {
+    const now = new Date("2026-10-19T12:00:00Z");
+    expect(foundingRateLabel({ endsOn: "2026-12-31" }, now)).toBe("Founding rate until 31 December 2026.");
+    expect(foundingRateLabel({ endsOn: "2026-12-31", note: " Your rate stays while your plan continues. " }, now)).toBe(
+      "Founding rate until 31 December 2026. Your rate stays while your plan continues.",
+    );
+    expect(foundingRateLabel({ endsOn: "2026-10-19" }, now)).toBe("Founding rate until 19 October 2026.");
+    expect(foundingRateLabel({ endsOn: "2026-10-18" }, now)).toBeNull();
+    expect(foundingRateLabel({ endsOn: "31/12/2026" }, now)).toBeNull();
+    expect(foundingRateLabel({ endsOn: "2026-02-30" }, now)).toBeNull();
   });
 });
 

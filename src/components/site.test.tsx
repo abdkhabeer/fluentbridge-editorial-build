@@ -135,6 +135,24 @@ describe("footer and pricing", () => {
   const enrollHrefs = () => screen.queryAllByRole("link", { name: "Choose & Start Enrollment" }).map((b) => b.getAttribute("href"));
   const choose = (label: string) => fireEvent.click(screen.getByRole("radio", { name: label }));
 
+  it("shows a founding rate under the hard-currency plan cards only when one is set", () => {
+    const us = getRegion("us");
+    const { unmount } = renderPricing();
+    choose("United States");
+    expect(screen.queryByText(/Founding rate until/)).toBeNull();
+    unmount();
+    us.foundingRate = { endsOn: "2999-12-31", note: "Your rate stays while your plan continues." };
+    try {
+      renderPricing();
+      choose("United States");
+      expect(screen.getByText("Founding rate until 31 December 2999. Your rate stays while your plan continues.")).toBeInTheDocument();
+      choose("Cairo, Egypt");
+      expect(screen.queryByText(/Founding rate until/)).toBeNull();
+    } finally {
+      delete us.foundingRate;
+    }
+  });
+
   it("defaults to Cairo, and its buttons start enrollment with their package links and prices", () => {
     renderPricing();
     expect(screen.getByRole("radio", { name: "Cairo, Egypt" })).toBeChecked();

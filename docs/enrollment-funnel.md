@@ -34,6 +34,7 @@ A static Vite + React SPA on Netlify, with Netlify Functions and Netlify Blobs.
 - Price snapshots now include `currency`, `price`, `billing` and `classes_per_week`. `price_egp` is set for EGP only. Snapshots saved before this change have no `currency` and are read as EGP.
 - Pricing CTAs open the contact form with `?inquiry=egypt-pricing|uk-pricing|consultation`. New contact fields must also be added to the hidden form in `index.html`, or Netlify Forms drops them.
 - Hard-currency prices: single lessons cost `HARD_CURRENCY_LIST_PRICE[currency]`; 12- and 20-class 4-week plans are discounted by `PLAN_DISCOUNTS` (5% and 10%). GBP plans use placeholder overrides (170 and 265) in `PLAN_PRICE_OVERRIDES`. Per-class prices and "Save" amounts are computed.
+- Founding rate: set `HARD_CURRENCY_FOUNDING_RATE` in `src/data/pricing.ts` to `{ endsOn: "YYYY-MM-DD", note?: "..." }` to show "Founding rate until {date}." under the Saudi Arabia, United States and United Kingdom plan cards. It disappears by itself after `endsOn`. Unset by default.
 
 ### Deploy-context isolation (`server/runtime.ts`)
 

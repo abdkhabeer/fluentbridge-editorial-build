@@ -4,6 +4,7 @@ import AnimatedSection from "./AnimatedSection";
 import {
   DEFAULT_REGION,
   displayAmount,
+  foundingRateLabel,
   getRegion,
   isRegionId,
   pricingRegions,
@@ -161,6 +162,7 @@ const LocationSelector = ({ value, onChange }: { value: RegionId; onChange: (id:
 const PricingSection = () => {
   const [regionId, setRegionId] = useState<RegionId>(initialRegion);
   const region = getRegion(regionId);
+  const foundingRate = foundingRateLabel(region.foundingRate);
 
   const choose = (id: RegionId) => {
     setRegionId(id);
@@ -214,11 +216,12 @@ const PricingSection = () => {
                 </h4>
                 <p className="text-sm text-muted-foreground max-w-xl">{track.blurb}</p>
               </div>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
+              <div className={`grid md:grid-cols-2 lg:grid-cols-3 gap-6 ${foundingRate ? "mb-6" : "mb-16"}`}>
                 {track.plans.map((plan) => (
                   <PlanCard key={plan.id} plan={plan} />
                 ))}
               </div>
+              {foundingRate && <p className="text-label text-navy mb-16">{foundingRate}</p>}
             </div>
           ))}
 
