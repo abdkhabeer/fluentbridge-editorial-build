@@ -33,6 +33,7 @@ import type {
   WritingStatus,
 } from "../src/lib/enrollment/apiTypes";
 import { reviewFlagsFor } from "../src/lib/enrollment/flags";
+import { FOLLOW_UP_MESSAGES, followUpEventType, type FollowUpMessage } from "../src/lib/enrollment/followUp";
 import { LEAD_STATUSES, type LeadStatus } from "../src/lib/enrollment/options";
 import { cleanText, parseApplication, parseContactCorrection, type NormalizedApplication } from "../src/lib/enrollment/schema";
 import { ANSWER_KEY } from "./assessment/answerKey";
@@ -605,6 +606,8 @@ const listLeads = async (ctx: ApiContext) => {
       instructor_level: a?.instructor_level ?? null,
       overall_score: a?.status === "completed" ? a.overall_score : null,
       review_flags: application.review_flags,
+      assessment_completed_at: a?.status === "completed" ? a.completed_at : null,
+      follow_up_count: application.follow_up_events?.length ?? 0,
     };
   });
   const leads = rows.filter((r): r is LeadSummary => r !== null).sort((x, y) => y.created_at.localeCompare(x.created_at));
@@ -752,6 +755,29 @@ const updateLead = async (req: Request, ctx: ApiContext, id: string) => {
   return json(200, leadDetail(nextApplication, nextAssessment));
 };
 
+/** Statuses that "Message 1 sent" must not move a lead back from. */
+const PAST_CONTACTED: LeadStatus[] = ["contacted", "trial_scheduled", "enrolled", "not_proceeding"];
+
+/**
+ * Records that the instructor opened WhatsApp follow-up message N for a lead.
+ * Message 1 also moves the lead to "Contacted" unless it is already there or further along.
+ */
+const recordFollowUp = async (req: Request, ctx: ApiContext, id: string) => {
+  const body = await readJson(req, LIMITS.empty);
+  const n = body.message as FollowUpMessage;
+  if (!FOLLOW_UP_MESSAGES.includes(n)) return error(422, "Unknown follow-up message.");
+  await loadLead(ctx, id);
+  const now = nowIso(ctx);
+  await update<ApplicationRecord>(ctx.store, keys.application(id), (app) => {
+    app.follow_up_events = [...(app.follow_up_events ?? []), { type: followUpEventType(n), at: now }].slice(-50);
+    if (n === 1 && !PAST_CONTACTED.includes(app.lead_status)) app.lead_status = "contacted";
+    app.updated_at = now;
+    return app;
+  });
+  const { application, assessment } = await loadLead(ctx, id);
+  return json(200, leadDetail(application, assessment));
+};
+
 /** Permanently deletes a lead: application, assessment, and access token. */
 export const deleteLeadRecords = async (store: Store, application: ApplicationRecord) => {
   await store.delete(keys.token(application.access_token_hash));
@@ -845,6 +871,11 @@ export const handleApiRequest = async (req: Request, ctx: ApiContext): Promise<R
       case "GET /api/instructor/leads":
         await requireInstructor(req, ctx);
         return await listLeads(ctx);
+    }
+    const followUp = /^POST \/api\/instructor\/leads\/([^/]+)\/follow-ups$/.exec(route);
+    if (followUp) {
+      await requireInstructor(req, ctx);
+      return await recordFollowUp(req, ctx, followUp[1]);
     }
     const lead = /^(GET|PATCH|DELETE) \/api\/instructor\/leads\/([^/]+)$/.exec(route);
     if (lead) {

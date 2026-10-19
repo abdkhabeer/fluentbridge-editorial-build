@@ -477,6 +477,30 @@ describe("instructor lead management", () => {
     expect(detail.body.assessment.writing.response).toBe("My writing sample.");
   });
 
+  it("records WhatsApp follow-ups, marks Message 1 as Contacted, and clears the waiting badge data", async () => {
+    const { id } = await completeLead();
+    const auth = await signIn();
+    let row = (await call("GET", "/api/instructor/leads", undefined, auth)).body.leads[0];
+    expect(row).toMatchObject({ follow_up_count: 0, assessment_completed_at: now.toISOString() });
+
+    const m1 = await call("POST", `/api/instructor/leads/${id}/follow-ups`, { message: 1 }, auth);
+    expect(m1.status).toBe(200);
+    expect(m1.body.application.lead_status).toBe("contacted");
+    expect(m1.body.application.follow_up_events).toEqual([{ type: "follow_up_1_sent", at: now.toISOString() }]);
+    row = (await call("GET", "/api/instructor/leads", undefined, auth)).body.leads[0];
+    expect(row.follow_up_count).toBe(1);
+
+    // Later messages are recorded but never move a lead backwards.
+    await call("PATCH", `/api/instructor/leads/${id}`, { lead_status: "enrolled", application_version: m1.body.application_version }, auth);
+    const again = await call("POST", `/api/instructor/leads/${id}/follow-ups`, { message: 1 }, auth);
+    expect(again.body.application.lead_status).toBe("enrolled");
+    const m3 = await call("POST", `/api/instructor/leads/${id}/follow-ups`, { message: 3 }, auth);
+    expect(m3.body.application.follow_up_events.map((e: { type: string }) => e.type)).toEqual(["follow_up_1_sent", "follow_up_1_sent", "follow_up_3_sent"]);
+
+    expect((await call("POST", `/api/instructor/leads/${id}/follow-ups`, { message: 5 }, auth)).status).toBe(422);
+    expect((await call("POST", `/api/instructor/leads/${id}/follow-ups`, { message: 1 })).status).toBe(401);
+  });
+
   it("rejects stale edits instead of silently overwriting newer changes", async () => {
     const { id } = await completeLead();
     const auth = await signIn();

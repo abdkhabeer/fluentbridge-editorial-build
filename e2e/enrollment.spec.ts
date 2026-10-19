@@ -99,8 +99,20 @@ test("student completes the enrollment funnel and the instructor can follow up",
   await page.goto("/instructor");
   await page.getByLabel("Password").fill("e2e-instructor-password");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.getByRole("button", { name: new RegExp(name) }).click();
+  const row = page.getByRole("button", { name: new RegExp(name) });
+  await expect(row.getByText(/^waiting \d+ min$/)).toBeVisible();
+  await row.click();
   await expect(page.getByText("+20 10 1234 5678")).toBeVisible();
+
+  // Message 1 opens WhatsApp with the message filled in and marks the lead as Contacted.
+  const message1 = page.getByRole("link", { name: "Message 1", exact: true });
+  await expect(message1).toHaveAttribute("href", /^https:\/\/wa\.me\/201012345678\?text=Hi%20E2E%2C%20it's%20Abdul/);
+  await page.context().route("https://wa.me/**", (r) => r.fulfill({ status: 200, body: "whatsapp" }));
+  const popup = page.waitForEvent("popup");
+  await message1.click();
+  await (await popup).close();
+  await expect(page.getByText(/^Sent /)).toBeVisible();
+  await expect(page.getByLabel("Lead status")).toHaveValue("contacted");
   await expect(page.getByText(/I live in Cairo/)).toBeVisible();
   await page.getByLabel("Lead status").selectOption("contacted");
   await page.getByRole("button", { name: "Save", exact: true }).click();

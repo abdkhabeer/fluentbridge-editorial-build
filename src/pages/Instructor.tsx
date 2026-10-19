@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import { describeSnapshot, formatMoney, snapshotPrice } from "@/data/pricing";
+import { describeSnapshot, formatMoney, snapshotPrice, trialPriceFor } from "@/data/pricing";
 import {
   CATEGORY_LABELS,
   CEFR_LEVELS,
@@ -14,6 +14,17 @@ import {
 import type { LeadDetail, LeadSummary } from "@/lib/enrollment/apiTypes";
 import { ApiError, instructorApi } from "@/lib/enrollment/client";
 import { REVIEW_FLAG_LABELS } from "@/lib/enrollment/flags";
+import {
+  FOLLOW_UP_MESSAGES,
+  WAITING_ALERT_MINUTES,
+  followUpEventType,
+  renderFollowUp,
+  waitingLabel,
+  waitingMinutes,
+  whatsappUrl,
+  type FollowUpMessage,
+} from "@/lib/enrollment/followUp";
+import { featureFlags } from "@/lib/featureFlags";
 import {
   DAYS,
   GROUP_STATUSES,
@@ -102,7 +113,29 @@ const StatusBadge = ({ status }: { status: LeadStatus }) => (
   </span>
 );
 
+/** Re-renders every 30 seconds so "waiting N min" badges stay current. */
+const useNow = () => {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
+  return now;
+};
+
+const WaitingBadge = ({ minutes }: { minutes: number }) => (
+  <span
+    className={cn(
+      "inline-block whitespace-nowrap px-2 py-0.5 text-[0.65rem] uppercase tracking-widest",
+      minutes >= WAITING_ALERT_MINUTES ? "bg-amber-500 text-white" : "bg-amber-100 text-amber-900",
+    )}
+  >
+    {waitingLabel(minutes)}
+  </span>
+);
+
 const LeadList = ({ leads, onOpen }: { leads: LeadSummary[]; onOpen: (id: string) => void }) => {
+  const now = useNow();
   const [filter, setFilter] = useState<LeadStatus | "all">("all");
   const [q, setQ] = useState("");
   const shown = useMemo(
@@ -138,7 +171,13 @@ const LeadList = ({ leads, onOpen }: { leads: LeadSummary[]; onOpen: (id: string
               <button type="button" onClick={() => onOpen(l.id)} className="w-full text-left p-4 sm:p-5 hover:bg-secondary transition-colors">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-serif text-xl text-foreground">{l.full_name}</span>
-                  <StatusBadge status={l.lead_status} />
+                  <span className="flex flex-wrap items-center gap-2">
+                    {(() => {
+                      const waiting = waitingMinutes(l.assessment_completed_at, l.follow_up_count, now);
+                      return waiting === null ? null : <WaitingBadge minutes={waiting} />;
+                    })()}
+                    <StatusBadge status={l.lead_status} />
+                  </span>
                 </div>
                 <div className="mt-1 grid gap-x-6 gap-y-1 text-xs text-muted-foreground sm:grid-cols-3">
                   <span>
@@ -228,6 +267,49 @@ const ContactEditor = ({
   );
 };
 
+const ReplyOnWhatsApp = ({ lead, onSent }: { lead: LeadDetail; onSent: (n: FollowUpMessage) => void }) => {
+  const app = lead.application;
+  const input = {
+    ...app,
+    category_scores: lead.assessment.category_scores,
+    improvement_areas: lead.assessment.improvement_areas,
+    trial_price: trialPriceFor(app.country, app.city),
+  };
+  const options = { now: new Date(), trialRefundCopy: featureFlags.trialRefundCopy };
+  return (
+    <Card title="Reply on WhatsApp">
+      <p className="text-xs text-muted-foreground mb-4">
+        Opens WhatsApp in a new tab with the message filled in. Message 1 marks the lead as Contacted.
+      </p>
+      <ul className="space-y-4">
+        {FOLLOW_UP_MESSAGES.map((n) => {
+          const text = renderFollowUp(n, input, options);
+          const sent = (app.follow_up_events ?? []).filter((e) => e.type === followUpEventType(n));
+          return (
+            <li key={n} className="space-y-2">
+              <a
+                href={text ? whatsappUrl(app.whatsapp_number, text) : undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-disabled={!text}
+                onClick={() => text && onSent(n)}
+                className={cn(
+                  "inline-flex items-center justify-center text-label px-5 py-2.5 bg-foreground text-background hover:bg-navy transition-colors",
+                  !text && "pointer-events-none opacity-50",
+                )}
+              >
+                Message {n}
+              </a>
+              {sent.length > 0 && <span className="ml-3 text-xs text-muted-foreground">Sent {fmtDate(sent[sent.length - 1].at)}</span>}
+              <p className="text-sm text-muted-foreground leading-relaxed">{text || "Not enough information to write this message."}</p>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+};
+
 const Detail = ({ id, onBack, onChanged }: { id: string; onBack: () => void; onChanged: () => void }) => {
   const [lead, setLead] = useState<LeadDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -284,6 +366,17 @@ const Detail = ({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
       setError(e instanceof Error ? e.message : "Save failed.");
     } finally {
       setSaving(null);
+    }
+  };
+
+  const recordFollowUp = async (n: FollowUpMessage) => {
+    try {
+      const d = await instructorApi.recordFollowUp(id, n);
+      setLead(d);
+      setStatus(d.application.lead_status);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? `WhatsApp opened, but the follow-up wasn't recorded: ${e.message}` : "The follow-up wasn't recorded.");
     }
   };
 
@@ -413,6 +506,8 @@ const Detail = ({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
             </div>
           </div>
         </Card>
+
+        <ReplyOnWhatsApp lead={lead} onSent={recordFollowUp} />
 
         <Card title="Goals">
           <dl>

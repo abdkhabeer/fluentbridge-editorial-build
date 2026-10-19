@@ -80,5 +80,7 @@ export const instructorApi = {
   lead: (id: string) => request<LeadDetail>("GET", `/api/instructor/leads/${encodeURIComponent(id)}`),
   updateLead: (id: string, update: LeadUpdate) =>
     request<LeadDetail>("PATCH", `/api/instructor/leads/${encodeURIComponent(id)}`, { body: update }),
+  recordFollowUp: (id: string, message: number) =>
+    request<LeadDetail>("POST", `/api/instructor/leads/${encodeURIComponent(id)}/follow-ups`, { body: { message } }),
   deleteLead: (id: string) => request<{ deleted: boolean }>("DELETE", `/api/instructor/leads/${encodeURIComponent(id)}`),
 };

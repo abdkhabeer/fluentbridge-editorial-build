@@ -62,11 +62,13 @@ export const DAYS = [
   { value: "sun", label: "Sun" },
 ] as const;
 
+// `startsAt` is the time used when suggesting a lesson slot. Morning has no stated
+// start in its label, so 09:00 is an assumption.
 export const TIMES_OF_DAY = [
-  { value: "morning", label: "Morning (before 12:00)" },
-  { value: "afternoon", label: "Afternoon (12:00–17:00)" },
-  { value: "evening", label: "Evening (17:00–21:00)" },
-  { value: "late_evening", label: "Late evening (after 21:00)" },
+  { value: "morning", label: "Morning (before 12:00)", startsAt: "09:00" },
+  { value: "afternoon", label: "Afternoon (12:00–17:00)", startsAt: "12:00" },
+  { value: "evening", label: "Evening (17:00–21:00)", startsAt: "17:00" },
+  { value: "late_evening", label: "Late evening (after 21:00)", startsAt: "21:00" },
 ] as const;
 
 export const LEAD_STATUSES = [

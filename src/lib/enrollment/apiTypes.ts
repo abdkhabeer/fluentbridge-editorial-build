@@ -5,6 +5,7 @@ import type { Category, CefrLevel, OptionId, RubricCriterion, WritingPrompt } fr
 import type { LeadStatus, LearningGoal, LessonFormat, PaymentMethod, WeeklyFrequency } from "./options";
 import type { ContactCorrection, NormalizedApplication } from "./schema";
 import type { ReviewFlag } from "./flags";
+import type { FollowUpEvent } from "./followUp";
 
 export type AssessmentStatus = "not_started" | "in_progress" | "writing" | "completed";
 export type WritingStatus = "not_started" | "draft" | "submitted" | "skipped" | "scored";
@@ -67,6 +68,8 @@ export type LeadSummary = {
   instructor_level: CefrLevel | null;
   overall_score: number | null;
   review_flags: ReviewFlag[];
+  assessment_completed_at: string | null;
+  follow_up_count: number;
 };
 
 export type ResponseDetail = {
@@ -136,6 +139,8 @@ export type ApplicationRecordPublic = NormalizedApplication & {
   assessment_id: string;
   access_expires_at: string | null;
   access_revoked_at: string | null;
+  /** WhatsApp follow-ups sent from the lead admin. Missing on leads created before this field existed. */
+  follow_up_events?: FollowUpEvent[];
 };
 
 export type LeadUpdate = {

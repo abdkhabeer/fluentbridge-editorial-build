@@ -770,3 +770,7 @@ export const describeSnapshot = (s: PriceSnapshot): string => {
     s.lessons! > 1 && p?.perLesson != null ? ` (${formatMoney(p.perLesson, p.currency)} per lesson, valid ${s.validity_days} days)` : "";
   return `${s.track_heading}, ${s.title}: ${money}${s.per_student ? " per student" : ""}${per}`;
 };
+
+/** The trial lesson price for a student's location ("100 EGP"), or null where no trial price is published. */
+export const trialPriceFor = (country: string, city: string): string | null =>
+  getRegion(regionForLocation(country, city)).trial ? formatMoney(trialLesson.amount, trialLesson.currency) : null;
