@@ -128,11 +128,19 @@ export const slotLabel = (day: Day | undefined, times: TimeOfDay[]): string | un
   return day && start ? `${DAY_NAMES[day]} at ${start}` : undefined;
 };
 
-/** Strongest skill by percentage, in plain words ("reading comprehension"). Ties go to the skill with more items. */
+/** A skill is called a strength only with at least this share correct... */
+export const STRONGEST_MIN_PERCENT = 50;
+/** ...and at least this many items correct, so 2 of 4 or 1 of 1 never counts. */
+export const STRONGEST_MIN_CORRECT = 4;
+
+/**
+ * Strongest skill by percentage, in plain words ("reading comprehension"), among skills with at least
+ * 50% and 4 items correct. Null when none qualifies. Ties go to the skill with more items.
+ */
 export const strongestSkill = (scores: Record<Category, CategoryScore> | null) => {
   if (!scores) return null;
   const [best] = (Object.entries(scores) as [Category, CategoryScore][])
-    .filter(([, s]) => s.total > 0 && s.correct > 0)
+    .filter(([, s]) => s.total > 0 && s.percent >= STRONGEST_MIN_PERCENT && s.correct >= STRONGEST_MIN_CORRECT)
     .sort((a, b) => b[1].percent - a[1].percent || b[1].total - a[1].total);
   return best ? { category: best[0], label: plainSkill(CATEGORY_LABELS[best[0]]), ...best[1] } : null;
 };

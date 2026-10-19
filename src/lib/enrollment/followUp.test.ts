@@ -65,6 +65,11 @@ describe("follow-up messages", () => {
     );
   });
 
+  it("leaves the strength sentence out of message 1 when no skill reaches 50% and 4 correct", () => {
+    const weak = { grammar: { correct: 4, total: 11, percent: 36 }, vocabulary: { correct: 2, total: 8, percent: 25 }, reading: { correct: 3, total: 6, percent: 50 }, usage: { correct: 1, total: 4, percent: 25 } };
+    expect(renderFollowUp(1, input({ category_scores: weak }), opts)).not.toContain("solid");
+  });
+
   it("drops sentences whose variables are missing and never sends braces", () => {
     const sparse = input({ preferred_days: [], trial_price: null, category_scores: null, improvement_areas: [], access_revoked_at: "2026-10-19T00:00:00Z" });
     const m1 = renderFollowUp(1, sparse, opts);
@@ -96,6 +101,16 @@ describe("template variables", () => {
       "sentence construction and practical use",
     );
     expect(strongestSkill(null)).toBeNull();
+    // At least 50% and at least 4 correct.
+    expect(strongestSkill({ ...input().category_scores!, reading: { correct: 3, total: 6, percent: 50 } })?.label).toBe("grammar");
+    expect(
+      strongestSkill({
+        grammar: { correct: 4, total: 11, percent: 36 },
+        vocabulary: { correct: 4, total: 9, percent: 44 },
+        reading: { correct: 3, total: 4, percent: 75 },
+        usage: { correct: 2, total: 4, percent: 50 },
+      }),
+    ).toBeNull();
   });
 
   it("reads the top gap from the first skill item and maps it to a tip", () => {

@@ -358,6 +358,29 @@ describe("results page", () => {
     trial_price: "100 EGP",
   };
 
+  it("names a strongest skill only at 50% or more with at least 4 correct, otherwise lists what went well", () => {
+    const weak = {
+      ...result,
+      category_scores: {
+        grammar: { correct: 4, total: 11, percent: 36 },
+        vocabulary: { correct: 3, total: 8, percent: 38 },
+        reading: { correct: 3, total: 6, percent: 50 },
+        usage: { correct: 3, total: 5, percent: 60 },
+      },
+    };
+    const { unmount } = render(<ResultsView result={weak} />);
+    expect(screen.queryByText(/Your strongest skill/)).toBeNull();
+    expect(screen.queryByText(/is your strongest skill/)).toBeNull();
+    expect(screen.getByRole("heading", { name: "What you did well" })).toBeInTheDocument();
+    expect(screen.getByText("You answered every question from A1 to A2 correctly.")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Strengths you showed" })).toBeNull();
+    expect(screen.getByText(/^This test can't measure speaking/)).toBeInTheDocument();
+    unmount();
+    render(<ResultsView result={result} />);
+    expect(screen.queryByRole("heading", { name: "What you did well" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Strengths you showed" })).toBeInTheDocument();
+  });
+
   it("shows a level range and next target instead of exact scores, and leads with the strongest skill", () => {
     render(<ResultsView result={result} />);
     expect(screen.getByText("Estimated English Level")).toBeInTheDocument();

@@ -61,10 +61,16 @@ export const ResultsView = ({ result, onRemoveData, removing }: Props) => {
         <p className="text-label text-muted-foreground mb-3">Your results</p>
         <h1 className="text-editorial-md text-foreground mb-2">Well done, {result.full_name}.</h1>
         <p className="text-muted-foreground">You've completed the FluentBridges placement test.</p>
-        {strongest && (
+        {strongest ? (
           <p className="mt-4 text-label text-navy">
             Your strongest skill: {strongest.label}, {strongest.correct} of {strongest.total}
           </p>
+        ) : (
+          result.strengths.length > 0 && (
+            <div className="mt-6">
+              <ListCard title="What you did well" items={result.strengths} />
+            </div>
+          )
         )}
       </header>
 
@@ -129,8 +135,8 @@ export const ResultsView = ({ result, onRemoveData, removing }: Props) => {
           </dl>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <ListCard title="Strengths you showed" items={result.strengths} />
+        <div className={strongest ? "grid gap-6 md:grid-cols-2" : "grid gap-6"}>
+          {strongest && <ListCard title="Strengths you showed" items={result.strengths} />}
           <ListCard title="Areas to work on" items={result.improvement_areas.length ? result.improvement_areas : ["No clear gaps at this level. Your instructor will help you set new challenges."]} />
         </div>
       </section>
