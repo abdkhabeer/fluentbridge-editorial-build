@@ -45,7 +45,7 @@ Simulated over 200,000 runs, with an illustrative profile of 95% accuracy at A1 
 | v1 (current) | 8.8% |
 | v2: an unmet band below L is allowed only if L itself is at least 4 of 5 | 4.9% |
 
-The chance of guessing 4 of 5 is 1.6%. **Optional change, needs approval.** It changes results, so it would ship as a new method (`fb-objective-v2`), and existing records keep v1.
+The chance of guessing 4 of 5 is 1.6%. **Approved and shipped** as `fb-objective-v2` for new submissions. Existing records keep v1.
 
 ### Proposed quick-check rule (`fb-quick-v1`, 12 items)
 
@@ -114,7 +114,7 @@ Blobs documents have no fixed schema, so these are additive fields. Records with
 ## Decisions needed
 
 1. Recommended quick-check rule (rule 4), or another variant.
-2. Whether to also adopt `fb-objective-v2` for the full test.
+2. ~~Whether to also adopt `fb-objective-v2` for the full test.~~ Adopted.
 3. Consent and privacy wording for step 1.
 4. Retention for quick-only leads.
 5. Whether email is still required before the full results, or WhatsApp alone is enough.

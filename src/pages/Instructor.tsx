@@ -564,7 +564,11 @@ const Detail = ({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
         <dl className="mb-6">
           <Row label="Status">{ASSESSMENT_LABELS[a.status]}</Row>
           <Row label="Started / completed">{`${fmtDate(a.started_at)} / ${fmtDate(a.completed_at)}`}</Row>
-          <Row label="Test version">{`${a.test_version}${a.scoring_method ? ` · ${a.scoring_method}` : ""}`}</Row>
+          <Row label="Test version">{a.test_version}</Row>
+          <Row label="Scoring">
+            {a.scoring_method &&
+              `${a.scoring_method}${a.scoring_method.startsWith("fb-objective-v1") ? " (earlier rule, level kept as scored)" : ""}`}
+          </Row>
           <Row label="Estimated level">
             {a.estimated_cefr_level && `${a.estimated_cefr_level} (objective)${a.confidence === "limited" ? ", limited evidence" : ""}`}
           </Row>

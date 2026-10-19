@@ -551,6 +551,35 @@ describe("instructor lead management", () => {
     expect((await call("GET", "/api/assessment", undefined, asStudent(t))).body.result).toMatchObject({ estimated_cefr_level: "C2", writing_status: "scored" });
   });
 
+  it("scores new submissions with fb-objective-v2 and keeps a v1 record as v1 when writing is scored", async () => {
+    const auth = await signIn();
+    const fresh = await completeLead();
+    expect((await call("GET", `/api/instructor/leads/${fresh.id}`, undefined, auth)).body.assessment.scoring_method).toBe("fb-objective-v2");
+
+    // A record scored before v2 shipped: weak A2, lucky B1 and B2. v1 placed it at B2; v2 would say A1.
+    const old = await completeLead();
+    const a = (await assessmentOf(old.id))!;
+    const key = keys.assessment(a.id);
+    const stored = (await ctx.store.get<AssessmentRecord>(key))!;
+    stored.value.objective = { ...stored.value.objective!, scoring_method: "fb-objective-v1", estimated_cefr_level: "B2" };
+    expect(await ctx.store.replace(key, stored.value, stored.etag)).toBe(true);
+
+    const seen = (await call("GET", `/api/instructor/leads/${old.id}`, undefined, auth)).body;
+    expect(seen.assessment).toMatchObject({ scoring_method: "fb-objective-v1", estimated_cefr_level: "B2" });
+    const upd = await call(
+      "PATCH",
+      `/api/instructor/leads/${old.id}`,
+      {
+        writing_rubric: { grammar: 2, vocabulary: 2, structure: 2, coherence: 2, task: 2 },
+        application_version: seen.application_version,
+        assessment_version: seen.assessment_version,
+      },
+      auth,
+    );
+    expect(upd.body.assessment).toMatchObject({ scoring_method: "fb-objective-v1+instructor-writing", estimated_cefr_level: "B2" });
+    expect((await call("GET", "/api/assessment", undefined, asStudent(old.t))).body.result.estimated_cefr_level).toBe("B2");
+  });
+
   it("corrects contact details with validation", async () => {
     const { id } = await completeLead();
     const auth = await signIn();

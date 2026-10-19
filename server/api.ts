@@ -506,7 +506,7 @@ const completeAssessment = async (req: Request, ctx: ApiContext) => {
         "Your instructor will review your writing and give you feedback on it.",
       );
     }
-    const overall = overallScore(a.objective.objective_score.percent, null);
+    const overall = overallScore(a.objective.objective_score.percent, null, a.objective.scoring_method);
     Object.assign(a, feedback, { status: "completed" as const, completed_at: now, updated_at: now, overall_score: overall.overall });
     a.objective.scoring_method = overall.method;
     justCompleted = true;
@@ -800,7 +800,7 @@ const updateLead = async (req: Request, ctx: ApiContext, id: string) => {
       next.writing.status = "scored";
       next.writing.scored_at = now;
       next.writing_score = rubricPercent(rubric);
-      const overall = overallScore(next.objective.objective_score.percent, next.writing_score);
+      const overall = overallScore(next.objective.objective_score.percent, next.writing_score, next.objective.scoring_method);
       next.overall_score = overall.overall;
       next.objective.scoring_method = overall.method;
     }

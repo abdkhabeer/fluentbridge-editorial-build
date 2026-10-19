@@ -1,5 +1,11 @@
 // Placement test scoring (server-authoritative). See docs/placement-scoring.md.
 //
+// New submissions use "fb-objective-v2". It is v1 with one change to rule 4c:
+// an unmet band below L is allowed only when band L itself is at least 80%
+// correct (4 of 5). This halves how often lucky guesses on a hard band can lift
+// a student past a weak band below it (docs/proposals/quick-check.md).
+// Records keep the method they were scored with; v1 results are never rescored.
+//
 // Method "fb-objective-v1":
 // 1. Each multiple-choice item is worth 1 point. Unanswered items score 0.
 // 2. Items are grouped into CEFR bands (A1–C2, five items each).
@@ -36,8 +42,14 @@ import {
 import type { LearningGoal } from "../../src/lib/enrollment/options";
 import { ANSWER_KEY } from "./answerKey";
 
-export const SCORING_METHOD = "fb-objective-v1";
-export const SCORING_METHOD_WITH_WRITING = "fb-objective-v1+instructor-writing";
+export const SCORING_METHOD_V1 = "fb-objective-v1";
+export const SCORING_METHOD_V2 = "fb-objective-v2";
+export type ObjectiveMethod = typeof SCORING_METHOD_V1 | typeof SCORING_METHOD_V2;
+/** The method for new submissions. */
+export const SCORING_METHOD: ObjectiveMethod = SCORING_METHOD_V2;
+export const WRITING_METHOD_SUFFIX = "+instructor-writing";
+/** v2: an unmet band below the estimate is tolerated only when the estimate's own band is at least this share correct. */
+export const V2_TOLERANCE_BAND_RATIO = 0.8;
 export const BAND_PASS_RATIO = 0.6;
 export const BAND_FLOOR_RATIO = 0.4;
 export const CUMULATIVE_MIN_RATIO = 0.6;
@@ -85,7 +97,11 @@ export const sanitizeAnswers = (raw: unknown): Answers => {
   return out;
 };
 
-export const estimateLevel = (evidence: BandEvidence[]): CefrLevel => {
+/** The objective method a stored method string was scored with. Missing or unknown values are v1, the only method before v2. */
+export const baseScoringMethod = (method: string | null | undefined): ObjectiveMethod =>
+  method === SCORING_METHOD_V2 || method?.startsWith(`${SCORING_METHOD_V2}+`) ? SCORING_METHOD_V2 : SCORING_METHOD_V1;
+
+export const estimateLevel = (evidence: BandEvidence[], method: ObjectiveMethod = SCORING_METHOD): CefrLevel => {
   let level: CefrLevel = "Pre-A1";
   for (let i = 0; i < evidence.length; i++) {
     const band = evidence[i];
@@ -96,12 +112,14 @@ export const estimateLevel = (evidence: BandEvidence[]): CefrLevel => {
     const below = evidence.slice(0, i);
     const unmetBelow = below.filter((b) => !b.met).length;
     const anyBelowFloor = below.some((b) => b.correct < Math.ceil(b.total * BAND_FLOOR_RATIO));
-    if (correct / total >= CUMULATIVE_MIN_RATIO && unmetBelow <= 1 && !anyBelowFloor) level = band.band;
+    const toleratesUnmet = method === SCORING_METHOD_V1 || band.correct >= Math.ceil(band.total * V2_TOLERANCE_BAND_RATIO);
+    const allowedUnmet = toleratesUnmet ? 1 : 0;
+    if (correct / total >= CUMULATIVE_MIN_RATIO && unmetBelow <= allowedUnmet && !anyBelowFloor) level = band.band;
   }
   return level;
 };
 
-export const scoreObjective = (answers: Answers): ObjectiveResult => {
+export const scoreObjective = (answers: Answers, method: ObjectiveMethod = SCORING_METHOD): ObjectiveResult => {
   const responses: ScoredResponse[] = QUESTIONS.map((q) => {
     const selected = answers[q.id] ?? null;
     const key = ANSWER_KEY[q.id];
@@ -131,14 +149,14 @@ export const scoreObjective = (answers: Answers): ObjectiveResult => {
 
   return {
     test_version: TEST_VERSION,
-    scoring_method: SCORING_METHOD,
+    scoring_method: method,
     responses,
     objective_score: { points, max, percent: pct(points, max) },
     answered,
     unanswered: responses.length - answered,
     category_scores,
     level_evidence,
-    estimated_cefr_level: estimateLevel(level_evidence),
+    estimated_cefr_level: estimateLevel(level_evidence, method),
     confidence: answered / responses.length >= STANDARD_CONFIDENCE_ANSWERED_RATIO ? "standard" : "limited",
   };
 };
@@ -168,13 +186,16 @@ export const rubricPercent = (r: RubricScores) => {
   return pct(total, WRITING_RUBRIC.length * RUBRIC_MAX_PER_CRITERION);
 };
 
-export const overallScore = (objectivePercent: number, writingPercent: number | null) =>
-  writingPercent === null
-    ? { overall: objectivePercent, method: SCORING_METHOD }
+/** Overall score, labelled with the record's own objective method (`scoredWith`), so a v1 record stays v1. */
+export const overallScore = (objectivePercent: number, writingPercent: number | null, scoredWith: string | null = SCORING_METHOD) => {
+  const base = baseScoringMethod(scoredWith);
+  return writingPercent === null
+    ? { overall: objectivePercent, method: base }
     : {
         overall: Math.round(objectivePercent * OBJECTIVE_WEIGHT + writingPercent * WRITING_WEIGHT),
-        method: SCORING_METHOD_WITH_WRITING,
+        method: `${base}${WRITING_METHOD_SUFFIX}`,
       };
+};
 
 // ── Feedback (derived only from the student's actual responses) ──
 
