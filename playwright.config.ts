@@ -36,9 +36,6 @@ export default defineConfig({
       url: "http://localhost:8093",
       reuseExistingServer: false,
       timeout: 120_000,
-  // One worker: the tests share one dev server, and signing out revokes every
-  // instructor session, so parallel runs would sign each other out.
-  workers: 1,
     },
   ],
 });
