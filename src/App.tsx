@@ -26,6 +26,7 @@ const App = () => (
           <Route path="/enroll" element={<Enroll />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/instructor" element={<Instructor />} />
+          <Route path="/instructor/funnel" element={<Instructor view="funnel" />} />
           <Route path="/instructor/:id" element={<Instructor />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

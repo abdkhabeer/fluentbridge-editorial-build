@@ -11,7 +11,7 @@ import {
   type Category,
   type RubricCriterion,
 } from "@/lib/assessment/questions";
-import type { LeadDetail, LeadSummary } from "@/lib/enrollment/apiTypes";
+import type { FunnelReport, LeadDetail, LeadSummary } from "@/lib/enrollment/apiTypes";
 import { ApiError, instructorApi } from "@/lib/enrollment/client";
 import { REVIEW_FLAG_LABELS } from "@/lib/enrollment/flags";
 import {
@@ -137,15 +137,18 @@ const WaitingBadge = ({ minutes }: { minutes: number }) => (
 const LeadList = ({ leads, onOpen }: { leads: LeadSummary[]; onOpen: (id: string) => void }) => {
   const now = useNow();
   const [filter, setFilter] = useState<LeadStatus | "all">("all");
+  const [source, setSource] = useState("all");
   const [q, setQ] = useState("");
+  const sources = useMemo(() => [...new Set(leads.map((l) => l.source ?? "unknown"))].sort(), [leads]);
   const shown = useMemo(
     () =>
       leads.filter(
         (l) =>
           (filter === "all" || l.lead_status === filter) &&
+          (source === "all" || (l.source ?? "unknown") === source) &&
           (!q || `${l.full_name} ${l.email} ${l.whatsapp_number}`.toLowerCase().includes(q.toLowerCase())),
       ),
-    [leads, filter, q],
+    [leads, filter, source, q],
   );
 
   return (
@@ -157,6 +160,14 @@ const LeadList = ({ leads, onOpen }: { leads: LeadSummary[]; onOpen: (id: string
           {LEAD_STATUSES.map((s) => (
             <option key={s.value} value={s.value}>
               {s.label} ({leads.filter((l) => l.lead_status === s.value).length})
+            </option>
+          ))}
+        </select>
+        <select className={cn(inputClass, "sm:w-48")} value={source} onChange={(e) => setSource(e.target.value)} aria-label="Filter by source">
+          <option value="all">All sources</option>
+          {sources.map((s) => (
+            <option key={s} value={s}>
+              {s === "unknown" ? "Not recorded" : s} ({leads.filter((l) => (l.source ?? "unknown") === s).length})
             </option>
           ))}
         </select>
@@ -191,6 +202,7 @@ const LeadList = ({ leads, onOpen }: { leads: LeadSummary[]; onOpen: (id: string
                     {l.estimated_cefr_level && ` · ${l.instructor_level ?? l.estimated_cefr_level}${l.instructor_level ? " (adjusted)" : ""} · ${l.overall_score}%`}
                   </span>
                   {l.review_flags.length > 0 && <span className="text-amber-800">{l.review_flags.length} item(s) to review</span>}
+                  {l.source && <span>Source: {l.source}</span>}
                 </div>
               </button>
             </li>
@@ -459,6 +471,18 @@ const Detail = ({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
             </Row>
             <Row label="Time zone">{app.timezone?.replace(/_/g, " ")}</Row>
             <Row label="Submitted">{fmtDate(app.created_at)}</Row>
+            {app.attribution && (
+              <>
+                <Row label="Source">
+                  {[app.attribution.utm_source, app.attribution.utm_medium, app.attribution.utm_campaign, app.attribution.utm_content]
+                    .map((v, i) => v && `${["source", "medium", "campaign", "content"][i]}: ${v}`)
+                    .filter(Boolean)
+                    .join(" · ") || "No UTM tags"}
+                </Row>
+                <Row label="Referrer">{app.attribution.referrer ?? "Direct"}</Row>
+                <Row label="Landing page">{`${app.attribution.landing_path} (${fmtDate(app.attribution.captured_at)})`}</Row>
+              </>
+            )}
             <Row label="Consent">{`${fmtDate(app.consent_timestamp)} (${app.consent_version})`}</Row>
             <Row label="Student access">
               {app.access_revoked_at
@@ -732,9 +756,92 @@ const Detail = ({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
   );
 };
 
+// ── Funnel ──
+
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+
+const Funnel = () => {
+  const [to, setTo] = useState(() => isoDay(new Date()));
+  const [from, setFrom] = useState(() => isoDay(new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)));
+  const [report, setReport] = useState<FunnelReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setReport(await instructorApi.funnel(from, to));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't load the funnel.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      <h1 className="font-serif text-3xl text-foreground">Funnel</h1>
+      <p className="text-sm text-muted-foreground">
+        Anonymous visitors (one per browser) reaching each step, by UTC date. Conversion is from the step above.
+      </p>
+      <form
+        className="flex flex-col gap-3 sm:flex-row sm:items-end"
+        onSubmit={(e) => {
+          e.preventDefault();
+          load();
+        }}
+      >
+        <label className="text-xs uppercase tracking-wider text-muted-foreground">
+          From
+          <input type="date" className={cn(inputClass, "mt-1")} value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
+        </label>
+        <label className="text-xs uppercase tracking-wider text-muted-foreground">
+          To
+          <input type="date" className={cn(inputClass, "mt-1")} value={to} min={from} onChange={(e) => setTo(e.target.value)} />
+        </label>
+        <PrimaryButton type="submit" disabled={busy}>
+          {busy ? "Loading…" : "Show"}
+        </PrimaryButton>
+      </form>
+      {error && <Notice tone="error">{error}</Notice>}
+      {report && (
+        <div className="overflow-x-auto border border-border bg-background">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
+                <th className="p-3 font-normal">Step</th>
+                <th className="p-3 font-normal text-right">Visitors</th>
+                <th className="p-3 font-normal text-right">Conversion</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.steps.map((s) => (
+                <tr key={s.label} className="border-b border-border last:border-0">
+                  <td className="p-3 text-foreground">{s.label}</td>
+                  <td className="p-3 text-right tabular-nums">{s.sessions}</td>
+                  <td className="p-3 text-right tabular-nums text-muted-foreground">{s.conversion === null ? "" : `${s.conversion}%`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="p-3 text-xs text-muted-foreground border-t border-border">
+            {report.total_events} events from {report.from} to {report.to}.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Page ──
 
-const Instructor = () => {
+const Instructor = ({ view }: { view?: "funnel" }) => {
   useNoIndex();
   const { id } = useParams();
   const navigate = useNavigate();
@@ -774,6 +881,9 @@ const Instructor = () => {
           </Link>
           {auth === "in" && (
             <div className="flex items-center gap-4">
+              <Link to={view === "funnel" ? "/instructor" : "/instructor/funnel"} className="text-label text-foreground">
+                {view === "funnel" ? "Leads" : "Funnel"}
+              </Link>
               <button type="button" className="text-label text-foreground" onClick={() => loadLeads()}>
                 Refresh
               </button>
@@ -812,6 +922,8 @@ const Instructor = () => {
         {auth === "in" &&
           (error ? (
             <Notice tone="error">{error}</Notice>
+          ) : view === "funnel" ? (
+            <Funnel />
           ) : id ? (
             <Detail id={id} onBack={() => navigate("/instructor")} onChanged={loadLeads} />
           ) : leads ? (

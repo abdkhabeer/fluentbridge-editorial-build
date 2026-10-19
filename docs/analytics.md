@@ -1,0 +1,37 @@
+# Funnel analytics and lead attribution
+
+First-party only. There are no third-party scripts, cookies or pixels.
+
+## What is collected
+
+| Data | Where | Personal data? |
+|---|---|---|
+| Funnel events: `intake_started`, `intake_step_completed` (step 1 to 4), `test_started`, `test_progress` (10, 20, 30 answered), `test_completed`, `results_viewed`, `whatsapp_clicked` (location), `trial_cta_clicked` (location) | `POST /api/events`, stored as `events/<UTC day>/<id>` in Blobs | No. Each event has a random browser id (`fb-analytics-session-v1` in localStorage, renewed after 30 days), the event name, whitelisted properties and a timestamp. No IP, user agent, name, email or phone number. |
+| First-touch attribution: `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, the referring page (origin and path, no query string), the landing path, and when it was captured | `fb-attribution-v1` in localStorage, for 30 days | Stays on the device unless lead attribution is enabled. |
+| Attribution and the browser id on a lead | `attribution` and `analytics_session_id` on the application record | Yes, once linked to a lead. **Only when `FEATURE_LEAD_ATTRIBUTION=true`**, checked by both the browser and the server. |
+
+Code: `src/lib/analytics/events.ts` (shared rules), `src/lib/analytics/client.ts` (browser), `server/analytics.ts` (storage and the Funnel report). Events are deleted by the daily retention job after `PROSPECT_RETENTION_DAYS` (12 months).
+
+The admin Funnel view is at `/instructor/funnel`: distinct browsers per step and the conversion from the step above, over a UTC date range of up to 92 days.
+
+## Wording that needs approval
+
+### 1. Before deploying events (needed now)
+
+The privacy page currently says "We don't use analytics, advertising, or tracking cookies." That stops being accurate once anonymous events are logged. Proposed replacement for that sentence in `src/pages/Privacy.tsx` ("Technical information"):
+
+> We count how many visitors reach each step of the enrollment form and placement test, for example how many start the test and how many finish it. To do this we store a random ID in your browser. These records don't include your name, contact details or IP address, aren't shared with anyone, and are deleted after 12 months. We don't use third-party analytics, advertising, or tracking cookies.
+
+This describes anonymous counting and doesn't change what applicants agree to, so I don't think it needs a consent version bump. Please confirm.
+
+### 2. Before turning on `FEATURE_LEAD_ATTRIBUTION`
+
+Add to "What we collect" under "When you apply and take the placement test":
+
+> How you found us, if you visited in the last 30 days: the campaign tags in the link you first used (for example utm_source=instagram), the website that linked to us, and the first page you opened. We link this, and the random ID described below, to your application.
+
+Proposed consent checkbox text (`src/components/enroll/ReviewStep.tsx`), with `CONSENT_VERSION` bumped from `2026-10-enrollment-v2` to `2026-10-enrollment-v3` in `server/api.ts`:
+
+> I agree that FluentBridges may use the information I have submitted, my placement test results, and how I found the website to evaluate my learning needs and contact me about lessons, as described in the privacy policy.
+
+After approval: apply both texts, bump the version, set `FEATURE_LEAD_ATTRIBUTION=true` for Builds and Functions, and redeploy. Leads created earlier keep `consent_version` v2 and have no attribution.

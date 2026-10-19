@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { trackOnce } from "@/lib/analytics/client";
+import { PROGRESS_MARKS } from "@/lib/analytics/events";
 import { ArrowLeft, ArrowRight, Check, CloudOff, Loader2 } from "lucide-react";
 import {
   PASSAGES,
@@ -159,12 +161,17 @@ export const PlacementTest = ({ token, firstName, initial, savedAnswers, savedIn
   };
 
   const goTo = (i: number) => {
+    if (i > index && PROGRESS_MARKS.includes(i as never)) trackOnce("test_progress", { answered: i });
     setIndex(i);
     onProgress({ questionIndex: i });
     window.scrollTo({ top: 0 });
   };
 
-  const next = () => (index < TOTAL - 1 ? goTo(index + 1) : setView("check"));
+  const next = () => {
+    if (index < TOTAL - 1) return goTo(index + 1);
+    if (PROGRESS_MARKS.includes(TOTAL as never)) trackOnce("test_progress", { answered: TOTAL });
+    setView("check");
+  };
 
   const submitObjective = async () => {
     setBusy(true);
@@ -192,6 +199,7 @@ export const PlacementTest = ({ token, firstName, initial, savedAnswers, savedIn
     try {
       if (writingInflight.current) await writingInflight.current;
       const r = await studentApi.complete(token, skipped ? "" : writing, skipped);
+      trackOnce("test_completed");
       onComplete(r.result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -232,6 +240,7 @@ export const PlacementTest = ({ token, firstName, initial, savedAnswers, savedIn
           type="button"
           className="w-full sm:w-auto"
           onClick={() => {
+            trackOnce("test_started");
             setView("question");
             queueSave(answers);
           }}

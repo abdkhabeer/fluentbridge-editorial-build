@@ -581,7 +581,59 @@ describe("instructor lead management", () => {
   });
 });
 
+describe("funnel events and attribution", () => {
+  const sid = "b".repeat(32);
+
+  it("stores anonymous events and reports the funnel to the instructor only", async () => {
+    expect((await call("POST", "/api/events", { name: "intake_started", session_id: sid })).status).toBe(202);
+    await call("POST", "/api/events", { name: "intake_step_completed", session_id: sid, props: { step: 1 } });
+    await call("POST", "/api/events", { name: "intake_started", session_id: "c".repeat(32) });
+    expect((await call("POST", "/api/events", { name: "intake_started", session_id: "sara@example.com" })).status).toBe(422);
+    const stored = [...ctx.store.data.entries()].filter(([k]) => k.startsWith("events/"));
+    expect(stored).toHaveLength(3);
+    expect(JSON.stringify(stored)).not.toMatch(/ip|user.?agent|@/i);
+
+    const day = now.toISOString().slice(0, 10);
+    expect((await call("GET", `/api/instructor/funnel?from=${day}&to=${day}`)).status).toBe(401);
+    const auth = await signIn();
+    const report = await call("GET", `/api/instructor/funnel?from=${day}&to=${day}`, undefined, auth);
+    expect(report.body.total_events).toBe(3);
+    expect(report.body.steps.slice(0, 2)).toEqual([
+      { label: "Started the intake form", sessions: 2, conversion: null },
+      { label: "Completed intake step 1", sessions: 1, conversion: 50 },
+    ]);
+    expect((await call("GET", "/api/instructor/funnel?from=2026-01-01&to=2026-12-31", undefined, auth)).status).toBe(422);
+  });
+
+  const attribution = () => ({ utm_source: "Instagram", utm_medium: "social", utm_campaign: null, utm_content: null, referrer: null, landing_path: "/", captured_at: now.toISOString() });
+
+  it("ignores attribution unless FEATURE_LEAD_ATTRIBUTION is on", async () => {
+    const res = await call("POST", "/api/applications", { application: validDraft(), access_token: token(), attribution: attribution(), analytics_session_id: sid });
+    const a = await app(res.body.application_id);
+    expect(a!.attribution).toBeUndefined();
+    expect(a!.analytics_session_id).toBeUndefined();
+  });
+
+  it("stores attribution and the session id on new leads when enabled, and shows the source", async () => {
+    ctx.config.leadAttribution = true;
+    const res = await call("POST", "/api/applications", { application: validDraft(), access_token: token(), attribution: attribution(), analytics_session_id: sid });
+    expect((await app(res.body.application_id))!).toMatchObject({ attribution: { utm_source: "Instagram", landing_path: "/" }, analytics_session_id: sid });
+    const list = await call("GET", "/api/instructor/leads", undefined, await signIn());
+    expect(list.body.leads[0].source).toBe("instagram");
+  });
+});
+
 describe("retention", () => {
+  it("deletes anonymous events older than 12 months", async () => {
+    const sid = "d".repeat(32);
+    await call("POST", "/api/events", { name: "intake_started", session_id: sid });
+    now = new Date(T0.getTime() + 300 * DAY);
+    await call("POST", "/api/events", { name: "intake_started", session_id: sid });
+    const report = await runRetention(ctx.store, new Date(T0.getTime() + 366 * DAY));
+    expect(report.events).toBe(1);
+    expect(await ctx.store.list("events/")).toHaveLength(1);
+  });
+
   it("deletes inactive prospects after 12 months, keeps enrolled students and recent leads, and prunes tokens and counters", async () => {
     ctx.clientIp = "203.0.113.9";
     const old = await submit();

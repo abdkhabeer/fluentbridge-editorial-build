@@ -64,6 +64,8 @@ import {
 } from "./auth";
 import { ACCESS_TTL_DAYS, PROSPECT_RETENTION_DAYS } from "../src/lib/enrollment/policy";
 import { keys, mapLimit, type Store } from "./store";
+import { MAX_FUNNEL_DAYS, funnelReport, recordEvent } from "./analytics";
+import { parseAttribution, parseEvent, sourceOf, SESSION_ID, type Attribution } from "../src/lib/analytics/events";
 
 export const CONSENT_VERSION = "2026-10-enrollment-v2";
 export { ACCESS_TTL_DAYS, PROSPECT_RETENTION_DAYS };
@@ -76,6 +78,7 @@ const LIMITS = {
   answers: 8 * KB,
   writing: 16 * KB,
   login: 1 * KB,
+  event: 1 * KB,
   instructor: 16 * KB,
   empty: 1 * KB,
 };
@@ -88,6 +91,11 @@ export type ApiConfig = {
   /** Set Secure on cookies (true everywhere except plain-http local dev). */
   secureCookies: boolean;
   now?: () => Date;
+  /**
+   * Store first-touch attribution and the analytics session id on new leads
+   * (FEATURE_LEAD_ATTRIBUTION). Off until the consent wording that covers it is approved.
+   */
+  leadAttribution?: boolean;
 };
 
 export type ApiContext = { store: Store; config: ApiConfig; clientIp?: string };
@@ -239,8 +247,17 @@ const enforceDailyCap = async (ctx: ApiContext) => {
   });
 };
 
-const buildApplication = (data: NormalizedApplication, index: TokenIndex, tokenHash: string, now: string): ApplicationRecord => ({
+type LeadTracking = { attribution: Attribution | null; analytics_session_id: string | null };
+
+const buildApplication = (
+  data: NormalizedApplication,
+  index: TokenIndex,
+  tokenHash: string,
+  now: string,
+  tracking: LeadTracking | null,
+): ApplicationRecord => ({
   ...data,
+  ...(tracking ?? {}),
   id: index.application_id,
   created_at: now,
   updated_at: now,
@@ -297,7 +314,13 @@ const createApplication = async (req: Request, ctx: ApiContext) => {
   // Application first, so contact details survive even if the assessment write fails.
   const iso = now.toISOString();
   if (!(await ctx.store.get(keys.application(index.application_id)))) {
-    await ctx.store.create(keys.application(index.application_id), buildApplication(parsed.data, index, tokenHash, iso));
+    const tracking = ctx.config.leadAttribution
+      ? {
+          attribution: parseAttribution(body.attribution),
+          analytics_session_id: typeof body.analytics_session_id === "string" && SESSION_ID.test(body.analytics_session_id) ? body.analytics_session_id : null,
+        }
+      : null;
+    await ctx.store.create(keys.application(index.application_id), buildApplication(parsed.data, index, tokenHash, iso, tracking));
   }
   let assessment = await ctx.store.get<AssessmentRecord>(keys.assessment(index.assessment_id));
   if (!assessment) {
@@ -609,6 +632,7 @@ const listLeads = async (ctx: ApiContext) => {
       review_flags: application.review_flags,
       assessment_completed_at: a?.status === "completed" ? a.completed_at : null,
       follow_up_count: application.follow_up_events?.length ?? 0,
+      source: sourceOf(application.attribution),
     };
   });
   const leads = rows.filter((r): r is LeadSummary => r !== null).sort((x, y) => y.created_at.localeCompare(x.created_at));
@@ -756,6 +780,27 @@ const updateLead = async (req: Request, ctx: ApiContext, id: string) => {
   return json(200, leadDetail(nextApplication, nextAssessment));
 };
 
+// ── Funnel events ──
+
+const logEvent = async (req: Request, ctx: ApiContext) => {
+  const event = parseEvent(await readJson(req, LIMITS.event));
+  if (!event) return error(422, "Unknown event.");
+  await recordEvent(ctx.store, event, nowDate(ctx));
+  return json(202, { ok: true });
+};
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+const getFunnel = async (req: Request, ctx: ApiContext) => {
+  const url = new URL(req.url);
+  const today = utcDay(nowDate(ctx));
+  const from = url.searchParams.get("from") ?? utcDay(new Date(nowDate(ctx).getTime() - 29 * DAY_MS));
+  const to = url.searchParams.get("to") ?? today;
+  if (!DAY.test(from) || !DAY.test(to) || from > to) return error(422, "Use dates as YYYY-MM-DD, with from on or before to.");
+  if ((Date.parse(to) - Date.parse(from)) / DAY_MS >= MAX_FUNNEL_DAYS) return error(422, `Choose a range of ${MAX_FUNNEL_DAYS} days or less.`);
+  return json(200, await funnelReport(ctx.store, from, to));
+};
+
 /** Statuses that "Message 1 sent" must not move a lead back from. */
 const PAST_CONTACTED: LeadStatus[] = ["contacted", "trial_scheduled", "enrolled", "not_proceeding"];
 
@@ -794,16 +839,17 @@ const deleteLead = async (ctx: ApiContext, id: string) => {
 
 // ── Retention (run daily by netlify/functions/retention-cleanup.mts) ──
 
-export type RetentionReport = { deletedLeads: number; expiredTokens: number; rateLimitKeys: number; keptEnrolled: number };
+export type RetentionReport = { deletedLeads: number; expiredTokens: number; rateLimitKeys: number; keptEnrolled: number; events: number };
 
 /**
  * - Deletes leads that are not "enrolled" and have had no activity for PROSPECT_RETENTION_DAYS.
  * - Enrolled students are never deleted automatically (reviewed manually; see docs).
  * - Deletes expired access tokens (records are kept; the token just stops existing).
  * - Deletes daily rate-limit counters older than yesterday.
+ * - Deletes anonymous funnel events older than PROSPECT_RETENTION_DAYS.
  */
 export const runRetention = async (store: Store, now: Date): Promise<RetentionReport> => {
-  const report: RetentionReport = { deletedLeads: 0, expiredTokens: 0, rateLimitKeys: 0, keptEnrolled: 0 };
+  const report: RetentionReport = { deletedLeads: 0, expiredTokens: 0, rateLimitKeys: 0, keptEnrolled: 0, events: 0 };
   const cutoff = now.getTime() - PROSPECT_RETENTION_DAYS * DAY_MS;
 
   const ids = (await store.list(keys.applicationsPrefix)).map((k) => k.slice(keys.applicationsPrefix.length));
@@ -839,6 +885,14 @@ export const runRetention = async (store: Store, now: Date): Promise<RetentionRe
       report.rateLimitKeys++;
     }
   }
+
+  const eventCutoff = utcDay(new Date(cutoff));
+  for (const key of await store.list(keys.eventsPrefix)) {
+    if ((key.split("/")[1] ?? "") < eventCutoff) {
+      await store.delete(key);
+      report.events++;
+    }
+  }
   return report;
 };
 
@@ -872,6 +926,11 @@ export const handleApiRequest = async (req: Request, ctx: ApiContext): Promise<R
       case "GET /api/instructor/leads":
         await requireInstructor(req, ctx);
         return await listLeads(ctx);
+      case "POST /api/events":
+        return await logEvent(req, ctx);
+      case "GET /api/instructor/funnel":
+        await requireInstructor(req, ctx);
+        return await getFunnel(req, ctx);
     }
     const followUp = /^POST \/api\/instructor\/leads\/([^/]+)\/follow-ups$/.exec(route);
     if (followUp) {

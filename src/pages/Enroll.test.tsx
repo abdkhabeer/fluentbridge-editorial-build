@@ -23,7 +23,8 @@ beforeEach(() => {
   // Route the browser's fetch to the real API handlers with an in-memory store.
   vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
     fetchSpy(url, init);
-    if (failNext > 0) {
+    // Analytics events are fire-and-forget and must not use up simulated failures.
+    if (failNext > 0 && url !== "/api/events") {
       failNext--;
       throw new TypeError("Failed to fetch");
     }
@@ -224,7 +225,7 @@ describe("enrollment funnel", () => {
     failNext = 1;
     fireEvent.click(screen.getByRole("button", { name: "Continue to English Placement Test" }));
     expect(await screen.findByText(/couldn't reach the server/)).toBeInTheDocument();
-    expect(ctx.store.data.size).toBe(0);
+    expect([...ctx.store.data.keys()].filter((k) => !k.startsWith("events/"))).toHaveLength(0);
 
     const retry = screen.getByRole("button", { name: "Try again" });
     fireEvent.click(retry);

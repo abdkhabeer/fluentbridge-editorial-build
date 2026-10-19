@@ -78,6 +78,7 @@ export const buildContext = (
       instructorPassword: runtime.instructorPassword,
       sessionSecret: runtime.sessionSecret,
       secureCookies: true,
+      leadAttribution: process.env.FEATURE_LEAD_ATTRIBUTION === "true",
     },
   };
 };

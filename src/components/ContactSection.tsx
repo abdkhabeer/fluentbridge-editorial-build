@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { QUOTE_CURRENCIES, formatMoney, inquiryFor, trialLesson, type InquiryType } from "@/data/pricing";
 import { COUNTRIES } from "@/lib/enrollment/countries";
 import { WEEKLY_FREQUENCIES } from "@/lib/enrollment/options";
+import { track } from "@/lib/analytics/client";
 
 // Every field name here must also be in the hidden "contact" form in index.html,
 // or Netlify Forms drops it.
@@ -103,7 +104,7 @@ const ContactSection = () => {
               <div className="space-y-3 text-sm">
                 <p>
                   <span className="text-label text-foreground block mb-1">WhatsApp</span>
-                  <a href="https://wa.me/15713265041" className="hover:text-foreground transition-colors">+1 (571) 326-5041</a>
+                  <a href="https://wa.me/15713265041" onClick={() => track("whatsapp_clicked", { location: "contact" })} className="hover:text-foreground transition-colors">+1 (571) 326-5041</a>
                 </p>
                 <p>
                   <span className="text-label text-foreground block mb-1">Egypt</span>

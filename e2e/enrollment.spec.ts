@@ -121,6 +121,15 @@ test("student completes the enrollment funnel and the instructor can follow up",
   await expectNoHorizontalScroll(page);
   await shot(page, "9-instructor");
 
+  // The Funnel view counts this visitor at every step they reached.
+  await page.getByRole("link", { name: "Funnel", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Funnel" })).toBeVisible();
+  for (const step of ["Started the intake form", "Completed intake step 4", "Answered 30 questions", "Completed the test", "Viewed results"]) {
+    await expect(page.getByRole("row", { name: new RegExp(`^${step} [1-9]`) })).toBeVisible();
+  }
+  await expectNoHorizontalScroll(page);
+  await page.getByRole("link", { name: "Leads", exact: true }).click();
+
   // Signing out revokes the session.
   await page.getByRole("button", { name: "Sign out" }).click();
   await page.reload();

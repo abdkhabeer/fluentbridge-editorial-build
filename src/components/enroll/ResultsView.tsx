@@ -7,6 +7,8 @@ import { CONTACT } from "@/lib/contact";
 import { bookingLink, packageSummary, whatsappLink } from "@/lib/enrollment/display";
 import { goalText, renderSentences, strongestSkill } from "@/lib/enrollment/followUp";
 import { BOOKING_URL, featureFlags } from "@/lib/featureFlags";
+import { useEffect } from "react";
+import { track, trackOnce } from "@/lib/analytics/client";
 import { Notice } from "./fields";
 
 const LEVEL_DESCRIPTIONS: Record<CefrLevel, string> = {
@@ -48,6 +50,8 @@ export const ResultsView = ({ result, onRemoveData, removing }: Props) => {
   const target = nextLevel(result.estimated_cefr_level);
   const strongest = strongestSkill(result.category_scores);
   const nextStep = renderSentences(NEXT_STEP, { strength: strongest?.label, goal: goalText(result) });
+
+  useEffect(() => trackOnce("results_viewed"), []);
   const goals = [result.primary_learning_goal, ...result.additional_learning_goals]
     .map((g) => (g === "other" && result.other_goal_text ? result.other_goal_text : labelFor(LEARNING_GOALS, g)));
 
@@ -183,6 +187,7 @@ export const ResultsView = ({ result, onRemoveData, removing }: Props) => {
             href={bookingLink(BOOKING_URL)}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => track("trial_cta_clicked", { location: "results" })}
             className="inline-flex items-center justify-center gap-2 text-label text-center px-8 py-4 bg-foreground text-background hover:bg-navy transition-colors"
           >
             <CalendarCheck size={16} className="shrink-0" />
@@ -192,6 +197,7 @@ export const ResultsView = ({ result, onRemoveData, removing }: Props) => {
             href={whatsappLink(firstName, range)}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => track("whatsapp_clicked", { location: "results" })}
             className="inline-flex items-center justify-center gap-2 text-label px-8 py-4 border border-foreground text-foreground hover:bg-foreground hover:text-background transition-colors"
           >
             <MessageCircle size={16} /> Ask Abdul on WhatsApp

@@ -6,5 +6,5 @@ import { handleNetlifyRequest } from "../../server/netlify";
 export default (req: Request, context: { deploy?: { context?: string }; ip?: string }) => handleNetlifyRequest(req, context);
 
 export const config = {
-  path: ["/api/instructor/session", "/api/instructor/leads", "/api/instructor/leads/*"],
+  path: ["/api/instructor/session", "/api/instructor/leads", "/api/instructor/leads/*", "/api/instructor/funnel"],
 };

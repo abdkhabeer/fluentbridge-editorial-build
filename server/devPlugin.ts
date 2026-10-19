@@ -36,6 +36,7 @@ export const devApiPlugin = (env: Record<string, string>): Plugin => ({
             instructorPassword: env.INSTRUCTOR_PASSWORD,
             sessionSecret: env.INSTRUCTOR_SESSION_SECRET,
             secureCookies: false,
+            leadAttribution: env.FEATURE_LEAD_ATTRIBUTION === "true",
           },
         });
         res.statusCode = response.status;

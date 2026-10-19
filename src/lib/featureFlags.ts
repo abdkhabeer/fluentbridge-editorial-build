@@ -9,6 +9,12 @@ export const featureFlags = {
   trialRefundCopy: on("FEATURE_TRIAL_REFUND_COPY"),
   /** Promises a writing review within 24 hours on the results page. */
   reviewSlaCopy: on("FEATURE_REVIEW_SLA_COPY"),
+  /**
+   * Sends first-touch attribution and the anonymous analytics session id with
+   * new applications. Off until the consent wording that covers it is approved.
+   * The server checks FEATURE_LEAD_ATTRIBUTION too.
+   */
+  leadAttribution: on("FEATURE_LEAD_ATTRIBUTION"),
 };
 
 /** Booking page for trial lessons. When unset, booking falls back to WhatsApp. */

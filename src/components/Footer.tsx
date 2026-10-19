@@ -1,3 +1,4 @@
+import { track } from "@/lib/analytics/client";
 import { Link } from "react-router-dom";
 
 const navLinks = [
@@ -36,7 +37,7 @@ const Footer = () => (
           <p className="text-label text-primary-foreground/40 mb-4">Contact</p>
           <div className="space-y-3 text-sm text-primary-foreground/60">
             <p>
-              <a href="https://wa.me/15713265041" className="hover:text-primary-foreground transition-colors">
+              <a href="https://wa.me/15713265041" onClick={() => track("whatsapp_clicked", { location: "footer" })} className="hover:text-primary-foreground transition-colors">
                 WhatsApp: +1 (571) 326-5041
               </a>
             </p>

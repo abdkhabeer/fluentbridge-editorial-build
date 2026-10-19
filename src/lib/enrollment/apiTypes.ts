@@ -6,6 +6,7 @@ import type { LeadStatus, LearningGoal, LessonFormat, PaymentMethod, WeeklyFrequ
 import type { ContactCorrection, NormalizedApplication } from "./schema";
 import type { ReviewFlag } from "./flags";
 import type { FollowUpEvent } from "./followUp";
+import type { Attribution } from "../analytics/events";
 
 export type AssessmentStatus = "not_started" | "in_progress" | "writing" | "completed";
 export type WritingStatus = "not_started" | "draft" | "submitted" | "skipped" | "scored";
@@ -70,6 +71,8 @@ export type LeadSummary = {
   review_flags: ReviewFlag[];
   assessment_completed_at: string | null;
   follow_up_count: number;
+  /** utm_source, referring host, or "direct". Null when attribution isn't stored. */
+  source: string | null;
 };
 
 export type ResponseDetail = {
@@ -141,6 +144,9 @@ export type ApplicationRecordPublic = NormalizedApplication & {
   access_revoked_at: string | null;
   /** WhatsApp follow-ups sent from the lead admin. Missing on leads created before this field existed. */
   follow_up_events?: FollowUpEvent[];
+  /** First-touch attribution (only when FEATURE_LEAD_ATTRIBUTION is on). */
+  attribution?: Attribution | null;
+  analytics_session_id?: string | null;
 };
 
 export type LeadUpdate = {
@@ -151,4 +157,11 @@ export type LeadUpdate = {
   instructor_notes?: string;
   instructor_level?: CefrLevel | null;
   writing_rubric?: Record<RubricCriterion, number>;
+};
+
+export type FunnelReport = {
+  from: string;
+  to: string;
+  total_events: number;
+  steps: { label: string; sessions: number; conversion: number | null }[];
 };

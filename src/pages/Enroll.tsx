@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { analyticsSessionId, storedAttribution, track, trackOnce } from "@/lib/analytics/client";
+import { featureFlags } from "@/lib/featureFlags";
 import { Link, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { findPlan, getRegion, isKnownPackageId, regionOfPackage } from "@/data/pricing";
@@ -69,6 +71,11 @@ const Enroll = () => {
   }, []);
 
   useEffect(() => saveFunnel(funnel), [funnel]);
+
+  useEffect(() => {
+    if (!funnel.submitted && funnel.phase === "details") trackOnce("intake_started");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Preselect a package from a pricing-card link (?package=student-8), then clean the URL.
   useEffect(() => {
@@ -194,6 +201,7 @@ const Enroll = () => {
       focusFirstError();
       return;
     }
+    track("intake_step_completed", { step: step + 1 });
     if (step < STEPS.length - 1) goTo({ step: step + 1 });
     else goTo({ phase: "review" });
   };
@@ -221,7 +229,12 @@ const Enroll = () => {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await studentApi.createApplication(draft, token, honeypot);
+      await studentApi.createApplication(
+        draft,
+        token,
+        honeypot,
+        featureFlags.leadAttribution ? { attribution: storedAttribution(), analytics_session_id: analyticsSessionId() } : undefined,
+      );
       // Contact details are now saved on the server; remove them from this device.
       setFunnel((f) => ({ ...f, token, submitted: true, phase: "test", draft: emptyDraft() }));
       window.scrollTo({ top: 0 });
