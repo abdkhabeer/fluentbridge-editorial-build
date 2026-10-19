@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { handleApiRequest, type ApiContext } from "../../server/api";
 import { memoryStore } from "../../server/store";
@@ -129,6 +129,22 @@ describe("enrollment funnel", () => {
     pick(/^Twice per week/);
     pick(/^12 Classes per 4 Weeks/);
     expect(screen.getByText(/This 4-week plan includes 3 classes per week/)).toBeInTheDocument();
+  });
+
+  it("suggests Professional English for general goals and shows the Student tier only after the student checkbox", () => {
+    renderAt("/enroll");
+    toLessons("Egypt", "Cairo", "01012345678");
+    expect(screen.queryByRole("heading", { name: "Student English" })).toBeNull();
+    const professional = screen.getByRole("heading", { name: "Professional English" }).parentElement!;
+    expect(professional).toHaveTextContent("Suggested for your goal");
+    fireEvent.click(screen.getByRole("checkbox", { name: /I'm a school or university student/ }));
+    expect(screen.getByText(/Student ID checked at your first lesson/)).toBeInTheDocument();
+    const student = screen.getByRole("heading", { name: "Student English" }).parentElement!;
+    expect(student).toHaveTextContent("Suggested for your goal");
+    fireEvent.click(within(student.parentElement!).getAllByRole("radio")[0]);
+    fireEvent.click(screen.getByRole("checkbox", { name: /I'm a school or university student/ }));
+    expect(screen.queryByRole("heading", { name: "Student English" })).toBeNull();
+    expect(screen.getAllByRole("radio", { checked: true }).filter((r) => (r as HTMLInputElement).name === "selected_package")).toHaveLength(0);
   });
 
   it("shows students outside Cairo the pricing request instead of Cairo prices", () => {
@@ -279,7 +295,7 @@ describe("shared-device cleanup", () => {
       ...JSON.parse(JSON.stringify((await import("@/lib/enrollment/schema")).emptyDraft())),
       full_name: "Mona Adel", country: "Egypt", city: "Cairo", email: "mona@example.com", whatsapp_number: "01012345678",
       primary_learning_goal: "general", self_reported_level: "beginner", lesson_format: "one_on_one",
-      preferred_classes_per_week: "2", selected_package: "student-8", preferred_payment_method: "paypal", consent: true,
+      preferred_classes_per_week: "2", selected_package: "student-8", is_student: true, preferred_payment_method: "paypal", consent: true,
     };
     expect((await api("POST", "/api/applications", { application: draft, access_token: token })).status).toBe(201);
     await api("POST", "/api/assessment/objective", { answers: Object.fromEntries(QUESTIONS.map((q) => [q.id, ANSWER_KEY[q.id].correct])) });

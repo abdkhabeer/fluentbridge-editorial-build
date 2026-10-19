@@ -549,6 +549,7 @@ const Detail = ({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
           <dl>
             <Row label="Format">{labelFor(LESSON_FORMATS, app.lesson_format)}</Row>
             {app.lesson_format === "small_group" && <Row label="Group">{labelFor(GROUP_STATUSES, app.group_status ?? "")}</Row>}
+            {app.is_student && <Row label="Student">Yes, check student ID at the first lesson</Row>}
             <Row label="Per week">{labelFor(WEEKLY_FREQUENCIES, app.preferred_classes_per_week)}</Row>
             <Row label="Package">{snap ? describeSnapshot(snap) : "Needs help choosing"}</Row>
             <Row label="Quoted price">{quoted && `${formatMoney(quoted.amount, quoted.currency)}${snap?.billing === "monthly" ? " per 4 weeks" : ""} (snapshot at submission)`}</Row>

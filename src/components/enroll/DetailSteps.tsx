@@ -25,7 +25,7 @@ import {
   suggestedTrackForGoal,
 } from "@/lib/enrollment/options";
 import { checkPhone, formatE164 } from "@/lib/enrollment/phone";
-import { packageFitsFormat, type EnrollmentDraft, type FieldErrors } from "@/lib/enrollment/schema";
+import { isStudentPackage, packageFitsFormat, type EnrollmentDraft, type FieldErrors } from "@/lib/enrollment/schema";
 import { CheckboxChips, Field, Group, Notice, RadioCards, inputClass } from "./fields";
 
 export type StepProps = {
@@ -282,9 +282,12 @@ export const LessonsStep = ({ draft, update, errors }: StepProps) => {
   // Prices come from the country and city on step 1, never from the visitor's IP.
   const region = getRegion(regionForLocation(country, draft.city));
   const priced = region.tracks.length > 0;
-  const suggested = suggestedTrackForGoal(draft.primary_learning_goal as never);
-  const visibleTracks = region.tracks.filter((t) =>
-    draft.lesson_format === "small_group" ? t.id === "group" : draft.lesson_format === "one_on_one" ? t.id !== "group" : true,
+  const suggested = suggestedTrackForGoal(draft.primary_learning_goal as never, draft.is_student);
+  const offersStudentTier = draft.lesson_format !== "small_group" && region.tracks.some((t) => t.id === "student");
+  const visibleTracks = region.tracks.filter(
+    (t) =>
+      (t.id !== "student" || draft.is_student) &&
+      (draft.lesson_format === "small_group" ? t.id === "group" : draft.lesson_format === "one_on_one" ? t.id !== "group" : true),
   );
   const note = frequencyPackageNote(draft.selected_package, draft.preferred_classes_per_week);
   // A package chosen on the pricing page for another location (or before the country changed).
@@ -364,6 +367,27 @@ export const LessonsStep = ({ draft, update, errors }: StepProps) => {
             <Notice>Small-group lessons aren't priced for your location yet. Choose “I need help choosing” and your instructor will help.</Notice>
           )}
           {locationNote && <Notice tone="warning">{locationNote}</Notice>}
+          {offersStudentTier && (
+            <label className="flex items-start gap-3 cursor-pointer border border-border bg-secondary p-4">
+              <input
+                type="checkbox"
+                checked={draft.is_student}
+                onChange={(e) =>
+                  update({
+                    is_student: e.target.checked,
+                    selected_package: !e.target.checked && isStudentPackage(draft.selected_package) ? "" : draft.selected_package,
+                  })
+                }
+                className="mt-1 h-4 w-4 shrink-0 accent-[hsl(var(--navy))]"
+              />
+              <span className="text-sm text-foreground leading-relaxed">
+                I'm a school or university student
+                <span className="block text-xs text-muted-foreground mt-1">
+                  Shows the Student English rate. Student ID checked at your first lesson.
+                </span>
+              </span>
+            </label>
+          )}
           {visibleTracks.map((track) => (
             <div key={track.id}>
               <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">

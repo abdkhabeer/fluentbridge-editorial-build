@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { emptyDraft, parseApplication, parseContactCorrection, validateStep, packageFitsFormat, type EnrollmentDraft } from "./schema";
+import { STUDENT_PACKAGE_ERROR, emptyDraft, parseApplication, parseContactCorrection, validateStep, packageFitsFormat, type EnrollmentDraft } from "./schema";
 import { checkPhone, normalizePhone } from "./phone";
 import { frequencyPackageNote, reviewFlagsFor } from "./flags";
-import { paymentMethodsFor } from "./options";
+import { paymentMethodsFor, suggestedTrackForGoal } from "./options";
 
 const draft = (over: Partial<EnrollmentDraft> = {}): EnrollmentDraft => ({
   ...emptyDraft(),
@@ -113,7 +113,7 @@ describe("location-based packages", () => {
     expect(validateStep(2, draft({ ...ksa, selected_package: "ksa-monthly-3" }))).toEqual({});
     expect(parseApplication(draft({ ...ksa, selected_package: "ksa-monthly-5" })).ok).toBe(true);
     expect(validateStep(2, draft({ ...ksa, selected_package: "us-monthly-3" })).selected_package).toMatch(/United States/);
-    expect(validateStep(2, draft({ ...ksa, selected_package: "student-8" })).selected_package).toMatch(/in Cairo/);
+    expect(validateStep(2, draft({ ...ksa, selected_package: "student-8", is_student: true })).selected_package).toMatch(/in Cairo/);
     expect(parseApplication(draft({ ...ksa, selected_package: "uk-single" })).ok).toBe(false);
   });
 
@@ -168,10 +168,29 @@ describe("parseApplication", () => {
   it("requires group status only for small groups and drops it otherwise", () => {
     expect(validateStep(2, draft({ group_status: "" })).group_status).toBeTruthy();
     expect(validateStep(2, draft({ group_status: "bogus" })).group_status).toBeTruthy();
-    const oneToOne = parseApplication(draft({ lesson_format: "one_on_one", selected_package: "student-8", group_status: "has_group" }));
+    const oneToOne = parseApplication(draft({ lesson_format: "one_on_one", selected_package: "student-8", is_student: true, group_status: "has_group" }));
     expect(oneToOne.ok && oneToOne.data.group_status).toBeNull();
     const group = parseApplication(draft({ group_status: "needs_group" }));
     expect(group.ok && group.data.group_status).toBe("needs_group");
+  });
+
+  it("allows Student English packages only to people who say they are a student", () => {
+    const pkg = { lesson_format: "one_on_one", selected_package: "student-8", group_status: "" };
+    expect(validateStep(2, draft(pkg)).selected_package).toBe(STUDENT_PACKAGE_ERROR);
+    expect(parseApplication(draft(pkg)).errors?.selected_package).toBe(STUDENT_PACKAGE_ERROR);
+    const ok = parseApplication(draft({ ...pkg, is_student: true }));
+    expect(ok.ok && ok.data.is_student).toBe(true);
+    const other = parseApplication(draft({ ...pkg, selected_package: "professional-8" }));
+    expect(other.ok && other.data.is_student).toBe(false);
+    expect(parseApplication(draft({ ...pkg, is_student: "yes" as never })).ok).toBe(false);
+  });
+
+  it("suggests Professional English for general goals unless the person is a student", () => {
+    expect(suggestedTrackForGoal("general")).toBe("professional");
+    expect(suggestedTrackForGoal("academic")).toBe("professional");
+    expect(suggestedTrackForGoal("business")).toBe("business");
+    expect(suggestedTrackForGoal("general", true)).toBe("student");
+    expect(suggestedTrackForGoal("business", true)).toBe("student");
   });
 
   it("rejects non-object input", () => {

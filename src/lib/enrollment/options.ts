@@ -99,17 +99,13 @@ export const values = <T extends readonly { value: string }[]>(list: T) =>
 export const labelFor = (list: readonly { value: string; label: string }[], value: string | null | undefined) =>
   list.find((o) => o.value === value)?.label ?? value ?? "";
 
-/** Track suggested for a goal. Used for a "suggested" hint only; students choose freely. */
-export const suggestedTrackForGoal = (goal: LearningGoal | "" | undefined): TrackId => {
-  switch (goal) {
-    case "business":
-      return "business";
-    case "career":
-    case "meetings":
-      return "professional";
-    default:
-      return "student";
-  }
+/**
+ * Track suggested for a goal. Used for a "suggested" hint only; students choose freely.
+ * Student English is suggested only to people who say they are a school or university student.
+ */
+export const suggestedTrackForGoal = (goal: LearningGoal | "" | undefined, isStudent = false): TrackId => {
+  if (isStudent) return "student";
+  return goal === "business" ? "business" : "professional";
 };
 
 export const isEgypt = (country: string) => country.trim().toLowerCase() === "egypt";

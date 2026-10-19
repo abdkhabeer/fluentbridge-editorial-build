@@ -88,6 +88,7 @@ export const ReviewStep = ({ draft, errors, onEdit, onConsent, honeypot, onHoney
         <Row label="Format">{labelFor(LESSON_FORMATS, draft.lesson_format)}</Row>
         {draft.lesson_format === "small_group" && <Row label="Group">{labelFor(GROUP_STATUSES, draft.group_status)}</Row>}
         <Row label="Lessons per week">{labelFor(WEEKLY_FREQUENCIES, draft.preferred_classes_per_week)}</Row>
+        {draft.is_student && <Row label="Student">Yes. Student ID checked at your first lesson.</Row>}
         <Row label="Package">{packageSummary(draft.selected_package)}</Row>
       </Section>
 
