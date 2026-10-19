@@ -11,7 +11,7 @@ const expectNoHorizontalScroll = async (page: Page) => {
 };
 
 test("student completes the enrollment funnel and the instructor can follow up", async ({ page }) => {
-  const name = `E2E Student ${test.info().project.name} ${Date.now()}`;
+  const name = `E2E Student ${test.info().project.name} ${Date.now()} ${test.info().workerIndex}${test.info().repeatEachIndex}`;
 
   await page.goto("/");
   await page.getByRole("link", { name: "Take the free placement test" }).click();
@@ -78,7 +78,8 @@ test("student completes the enrollment funnel and the instructor can follow up",
 
   // Results
   await expect(page.getByText("Estimated English Level")).toBeVisible();
-  await expect(page.getByRole("link", { name: /Discuss My Results on WhatsApp/ })).toHaveAttribute("href", /wa\.me\/15713265041/);
+  await expect(page.getByRole("link", { name: /Ask Abdul on WhatsApp/ })).toHaveAttribute("href", /wa\.me\/15713265041/);
+  await expect(page.getByRole("link", { name: "Book my trial: 100 EGP, credited to your package" })).toBeVisible();
   await expectNoHorizontalScroll(page);
   await shot(page, "8-results");
 

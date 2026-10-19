@@ -11,7 +11,7 @@
 // Every read-modify-write uses ETag-conditional writes (Store.replace), so a
 // stale request can never overwrite newer data.
 
-import { buildPriceSnapshot, HELP_CHOOSING_PACKAGE, findPlan, findTrial } from "../src/data/pricing";
+import { buildPriceSnapshot, HELP_CHOOSING_PACKAGE, findPlan, findTrial, trialPriceFor } from "../src/data/pricing";
 import {
   CEFR_LEVELS,
   PASSAGES,
@@ -349,9 +349,8 @@ export const studentResult = (application: ApplicationRecord, a: AssessmentRecor
     test_version: a.test_version,
     completed_at: a.completed_at,
     estimated_cefr_level: a.objective.estimated_cefr_level,
+    // Exact scores stay in the lead admin; students see a level range.
     confidence: a.objective.confidence,
-    objective_score: a.objective.objective_score,
-    overall_score: a.overall_score ?? a.objective.objective_score.percent,
     unanswered: a.objective.unanswered,
     category_scores: a.objective.category_scores,
     writing_status: a.writing.status,
@@ -366,6 +365,7 @@ export const studentResult = (application: ApplicationRecord, a: AssessmentRecor
     selected_package: application.selected_package,
     selected_package_price_snapshot: application.selected_package_price_snapshot,
     preferred_payment_method: application.preferred_payment_method,
+    trial_price: trialPriceFor(application.country, application.city),
   };
 };
 

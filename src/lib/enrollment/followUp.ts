@@ -152,7 +152,7 @@ export const topGap = (areas: string[]): string | null => {
 
 export const tipFor = (gap: string | null) => (gap && TIPS[gap.replace(/^the /, "")]) || FALLBACK_TIP;
 
-const goalText = (input: Pick<FollowUpInput, "primary_learning_goal" | "other_goal_text">) =>
+export const goalText = (input: Pick<FollowUpInput, "primary_learning_goal" | "other_goal_text">) =>
   (input.primary_learning_goal === "other" && input.other_goal_text
     ? input.other_goal_text
     : labelFor(LEARNING_GOALS, input.primary_learning_goal)

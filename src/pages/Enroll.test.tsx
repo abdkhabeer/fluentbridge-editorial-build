@@ -319,8 +319,6 @@ describe("results page", () => {
     completed_at: "2026-10-18T10:00:00Z",
     estimated_cefr_level: "B1",
     confidence: "standard",
-    objective_score: { points: 17, max: 30, percent: 57 },
-    overall_score: 57,
     unanswered: 1,
     category_scores: {
       grammar: { correct: 6, total: 11, percent: 55 },
@@ -340,27 +338,51 @@ describe("results page", () => {
     selected_package: "business-8",
     selected_package_price_snapshot: null,
     preferred_payment_method: "vodafone_cash",
+    trial_price: "100 EGP",
   };
 
-  it("shows the estimated level, scores, measured vs recommended sections, and the disclaimer", () => {
+  it("shows a level range and next target instead of exact scores, and leads with the strongest skill", () => {
     render(<ResultsView result={result} />);
     expect(screen.getByText("Estimated English Level")).toBeInTheDocument();
-    expect(screen.getByText("B1")).toBeInTheDocument();
-    expect(screen.getByText("57%")).toBeInTheDocument();
+    expect(screen.getByText("B1 to B2")).toBeInTheDocument();
+    expect(screen.getByText("Your next target")).toBeInTheDocument();
+    expect(screen.getByText("B2")).toBeInTheDocument();
+    expect(screen.queryByText(/%/)).toBeNull();
+    expect(screen.queryByText(/Overall score|Correct answers/)).toBeNull();
+    expect(screen.getByText("Your strongest skill: reading comprehension, 4 of 6")).toBeInTheDocument();
     expect(screen.getByText(/Your instructor may adjust your level after reviewing your writing and speaking ability/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "What we measured" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "What we recommend" })).toBeInTheDocument();
     expect(screen.getByText("Awaiting instructor review")).toBeInTheDocument();
-    expect(screen.getByText(/haven't been charged and no lessons are booked/)).toBeInTheDocument();
+    expect(screen.getByText("Nothing is charged and nothing is booked until you confirm.")).toBeInTheDocument();
+    expect(screen.queryByText(/refunded/)).toBeNull();
   });
 
-  it("links to WhatsApp with only the first name and level", () => {
+  it("shows no range at the top band, and a range from Pre-A1", () => {
+    const { unmount } = render(<ResultsView result={{ ...result, estimated_cefr_level: "C2" }} />);
+    expect(screen.getByText("C2")).toBeInTheDocument();
+    expect(screen.queryByText(/C2 to/)).toBeNull();
+    expect(screen.queryByText("Your next target")).toBeNull();
+    unmount();
+    render(<ResultsView result={{ ...result, estimated_cefr_level: "Pre-A1" }} />);
+    expect(screen.getByText("Pre-A1 to A1")).toBeInTheDocument();
+  });
+
+  it("explains the next step and offers the trial, then WhatsApp with only the first name and level range", () => {
     render(<ResultsView result={result} />);
-    const href = screen.getByRole("link", { name: /Discuss My Results on WhatsApp/ }).getAttribute("href")!;
+    expect(
+      screen.getByText(
+        "Your reading comprehension is your strongest skill. This test can't measure speaking, so the next step is a 30 minute trial. I'll hear you speak and send you a written plan for business english and workplace communication.",
+      ),
+    ).toBeInTheDocument();
+    // Without BOOKING_URL, booking falls back to WhatsApp.
+    const book = screen.getByRole("link", { name: "Book my trial: 100 EGP, credited to your package" }).getAttribute("href")!;
+    expect(decodeURIComponent(book.split("text=")[1])).toBe("Hi Abdul, I'd like to book my 30 minute trial");
+    const href = screen.getByRole("link", { name: /Ask Abdul on WhatsApp/ }).getAttribute("href")!;
     expect(href).toMatch(/^https:\/\/wa\.me\/15713265041\?text=/);
     const text = decodeURIComponent(href.split("text=")[1]);
     expect(text).toContain("Mona");
-    expect(text).toContain("B1");
+    expect(text).toContain("B1 to B2");
     expect(text).not.toContain("Adel");
     expect(screen.getByRole("link", { name: /Send a message instead/ })).toHaveAttribute("href", "/#contact");
   });

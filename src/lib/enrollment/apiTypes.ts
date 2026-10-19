@@ -20,8 +20,6 @@ export type StudentResult = {
   completed_at: string;
   estimated_cefr_level: CefrLevel;
   confidence: "standard" | "limited";
-  objective_score: { points: number; max: number; percent: number };
-  overall_score: number;
   unanswered: number;
   category_scores: Record<Category, CategoryScore>;
   writing_status: WritingStatus;
@@ -36,6 +34,8 @@ export type StudentResult = {
   selected_package: string;
   selected_package_price_snapshot: PriceSnapshot | null;
   preferred_payment_method: PaymentMethod;
+  /** Trial lesson price for the student's location ("10 USD"), or null where none is published. */
+  trial_price: string | null;
 };
 
 export type StudentAssessmentState = {

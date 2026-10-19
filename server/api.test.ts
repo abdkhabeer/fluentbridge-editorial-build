@@ -299,7 +299,10 @@ describe("placement assessment", () => {
     const { t, res } = await submit();
     await call("POST", "/api/assessment/objective", { answers: allCorrect }, asStudent(t));
     const done = await call("POST", "/api/assessment/complete", { text: "I think remote work is productive.\u0000" }, asStudent(t));
-    expect(done.body.result).toMatchObject({ full_name: "Mona Adel", estimated_cefr_level: "C2", writing_status: "submitted", overall_score: 100 });
+    expect(done.body.result).toMatchObject({ full_name: "Mona Adel", estimated_cefr_level: "C2", writing_status: "submitted", trial_price: "100 EGP" });
+    // Exact scores stay in the lead admin.
+    expect(done.body.result.overall_score).toBeUndefined();
+    expect(done.body.result.objective_score).toBeUndefined();
     const again = await call("POST", "/api/assessment/complete", { text: "Different" }, asStudent(t));
     expect(again.body).toEqual(done.body);
     const a = await assessmentOf(res.body.application_id);
@@ -545,7 +548,7 @@ describe("instructor lead management", () => {
     );
     expect(upd.status).toBe(200);
     expect(upd.body.assessment).toMatchObject({ writing_score: 50, overall_score: 90, instructor_level: "C1", estimated_cefr_level: "C2" });
-    expect((await call("GET", "/api/assessment", undefined, asStudent(t))).body.result).toMatchObject({ estimated_cefr_level: "C2", overall_score: 90 });
+    expect((await call("GET", "/api/assessment", undefined, asStudent(t))).body.result).toMatchObject({ estimated_cefr_level: "C2", writing_status: "scored" });
   });
 
   it("corrects contact details with validation", async () => {

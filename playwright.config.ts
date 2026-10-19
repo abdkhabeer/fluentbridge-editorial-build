@@ -8,6 +8,9 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "e2e",
   timeout: 120_000,
+  // One worker: the tests share one dev server, and signing out revokes every
+  // instructor session, so parallel runs would sign each other out.
+  workers: 1,
   projects: [
     { name: "mobile", testIgnore: /csp\.spec/, use: { ...devices["Pixel 5"], baseURL: "http://localhost:8091" } },
     {
@@ -33,6 +36,9 @@ export default defineConfig({
       url: "http://localhost:8093",
       reuseExistingServer: false,
       timeout: 120_000,
+  // One worker: the tests share one dev server, and signing out revokes every
+  // instructor session, so parallel runs would sign each other out.
+  workers: 1,
     },
   ],
 });
