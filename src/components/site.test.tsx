@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { MemoryRouter } from "react-router-dom";
 import { Toaster } from "sonner";
 import AboutSection from "./AboutSection";
+import Hero from "./Hero";
 import ContactSection from "./ContactSection";
 import Footer from "./Footer";
 import PricingSection from "./PricingSection";
@@ -82,6 +83,23 @@ describe("contact form", () => {
     vi.stubGlobal("fetch", vi.fn());
     renderContact();
     expect(screen.getByRole("link", { name: "privacy policy" })).toHaveAttribute("href", "/privacy");
+  });
+});
+
+describe("hero", () => {
+  it("leads with the level test and prices", () => {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    render(
+      <MemoryRouter>
+        <Hero />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("CELTA-CERTIFIED AMERICAN ENGLISH COACH")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Speak English with confidence in meetings, interviews, and negotiations." })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Take the free level test" })).toHaveAttribute("href", "/enroll");
+    expect(screen.getByRole("link", { name: "See prices" })).toHaveAttribute("href", "#pricing");
+    expect(screen.getByText("Free. About 25 to 30 minutes.")).toBeInTheDocument();
+    expect(screen.queryByText(/Take the free placement test/)).toBeNull();
   });
 });
 

@@ -14,7 +14,9 @@ test("student completes the enrollment funnel and the instructor can follow up",
   const name = `E2E Student ${test.info().project.name} ${Date.now()} ${test.info().workerIndex}${test.info().repeatEachIndex}`;
 
   await page.goto("/");
-  await page.getByRole("link", { name: "Take the free placement test" }).click();
+  await expect(page).toHaveTitle("English Coaching for Working Professionals | FluentBridges");
+  await expect(page.getByText("Free. About 25 to 30 minutes.")).toBeVisible();
+  await page.getByRole("link", { name: "Take the free level test" }).click();
   await expect(page).toHaveURL(/\/enroll$/);
   await expectNoHorizontalScroll(page);
   await shot(page, "1-details");

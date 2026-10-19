@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { TEST_DURATION_COPY } from "@/lib/copy";
 import { motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -56,7 +57,7 @@ const Hero = () => {
   }, [currentIndex]);
 
   return (
-    <section id="hero" className="relative h-[100svh] w-full overflow-hidden">
+    <section id="hero" className="relative min-h-[100svh] w-full overflow-hidden">
       {/* Current video */}
       <video
         ref={currentRef}
@@ -76,7 +77,7 @@ const Hero = () => {
       />
       <div className="absolute inset-0 bg-charcoal/50" />
 
-      <div className="relative z-10 h-full flex flex-col justify-end pb-20 md:pb-28 container-editorial">
+      <div className="relative z-10 min-h-[100svh] flex flex-col justify-end pt-28 pb-20 md:pb-28 container-editorial">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
@@ -84,35 +85,29 @@ const Hero = () => {
           className="max-w-3xl"
         >
           <p className="text-label text-warm-white/80 mb-6">
-            CELTA-Certified English Coaching
+            CELTA-CERTIFIED AMERICAN ENGLISH COACH
           </p>
           <h1 className="text-editorial-xl text-warm-white mb-6">
-            Communicate Clearly.<br />
-            Speak With Confidence.
+            Speak English with confidence in meetings, interviews, and negotiations.
           </h1>
           <p className="text-body-lg text-warm-white/80 max-w-xl mb-10">
-            Personalized online English lessons designed for students, professionals, and motivated learners in Cairo and beyond.
+            One-to-one coaching for working professionals. Take the free level test, get a written plan, then book a 30-minute trial.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
-            <a
-              href="#contact"
+            <Link
+              to="/enroll"
               className="text-label px-8 py-4 bg-warm-white text-charcoal hover:bg-sand transition-colors text-center"
             >
-              Book a Trial Lesson
-            </a>
+              Take the free level test
+            </Link>
             <a
-              href="#services"
+              href="#pricing"
               className="text-label px-8 py-4 border border-warm-white text-warm-white hover:bg-warm-white/10 transition-colors text-center"
             >
-              Explore Lessons
+              See prices
             </a>
           </div>
-          <p className="mt-6 text-sm text-warm-white/80">
-            Not sure of your level?{" "}
-            <Link to="/enroll" className="text-warm-white underline underline-offset-4 hover:opacity-80">
-              Take the free placement test
-            </Link>
-          </p>
+          <p className="mt-6 text-sm text-warm-white/80">{TEST_DURATION_COPY}</p>
         </motion.div>
 
         <motion.div
