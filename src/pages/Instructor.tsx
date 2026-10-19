@@ -43,13 +43,13 @@ import { cn } from "@/lib/utils";
 import { Notice, PrimaryButton, SecondaryButton, inputClass } from "@/components/enroll/fields";
 
 const fmtDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : "—";
+  iso ? new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : "Not set";
 
 const ASSESSMENT_LABELS = { not_started: "Not started", in_progress: "In progress", writing: "Writing task", completed: "Completed" };
 
 const useNoIndex = () =>
   useEffect(() => {
-    document.title = "Instructor | Fluent Bridges";
+    document.title = "Instructor | FluentBridges";
     const meta = document.createElement("meta");
     meta.name = "robots";
     meta.content = "noindex, nofollow";
@@ -225,7 +225,7 @@ const Card = ({ title, children }: { title: string; children: ReactNode }) => (
 const Row = ({ label, children }: { label: string; children: ReactNode }) => (
   <div className="grid gap-1 py-1.5 sm:grid-cols-[10rem_1fr] text-sm">
     <dt className="text-muted-foreground">{label}</dt>
-    <dd className="text-foreground break-words">{children || "—"}</dd>
+    <dd className="text-foreground break-words">{children || "None"}</dd>
   </div>
 );
 

@@ -1,4 +1,4 @@
-// Published Fluent Bridges contact details (also shown in ContactSection and Footer).
+// Published FluentBridges contact details (also shown in ContactSection and Footer).
 export const CONTACT = {
   whatsappDigits: "15713265041",
   whatsappDisplay: "+1 (571) 326-5041",

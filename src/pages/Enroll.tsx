@@ -67,7 +67,7 @@ const Enroll = () => {
   const { draft, phase, step } = funnel;
 
   useEffect(() => {
-    document.title = "Enroll | Fluent Bridges";
+    document.title = "Enroll | FluentBridges";
   }, []);
 
   useEffect(() => saveFunnel(funnel), [funnel]);

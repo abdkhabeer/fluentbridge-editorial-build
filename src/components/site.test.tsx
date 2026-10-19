@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { Toaster } from "sonner";
 import AboutSection from "./AboutSection";
 import Hero from "./Hero";
+import NotFound from "@/pages/NotFound";
 import ContactSection from "./ContactSection";
 import Footer from "./Footer";
 import PricingSection from "./PricingSection";
@@ -108,7 +109,7 @@ describe("about section", () => {
     render(<AboutSection />);
     expect(screen.getByRole("heading", { name: "Meet Your English Coach" })).toBeInTheDocument();
     expect(screen.getByText("CELTA-Certified English Teacher")).toBeInTheDocument();
-    const img = screen.getByRole("img", { name: "Abdul Khabeer, Fluent Bridges English coach" });
+    const img = screen.getByRole("img", { name: "Abdul Khabeer, FluentBridges English coach" });
     expect(img).toHaveAttribute("src", "/fluentbridges-instructor.jpg");
     expect(img).toHaveAttribute("width", "259");
     expect(img).toHaveAttribute("height", "452");
@@ -285,5 +286,40 @@ describe("pricing requests through the contact form", () => {
     const html = readFileSync("index.html", "utf8");
     const registered = [...html.matchAll(/name="([a-z_-]+)"/g)].map((m) => m[1]);
     for (const name of [...sent, "level"]) if (name !== "form-name") expect(registered, name).toContain(name);
+  });
+});
+
+describe("routing and crawling", () => {
+  const rules = readFileSync("public/_redirects", "utf8")
+    .split("\n")
+    .filter((l) => l.trim() && !l.startsWith("#"))
+    .map((l) => l.trim().split(/\s+/));
+
+  it("serves every app route with 200 and everything else with a real 404", () => {
+    const appRoutes = [...readFileSync("src/App.tsx", "utf8").matchAll(/path="([^"*]+)"/g)].map((m) => m[1].replace(/\/:[^/]+$/, "/*"));
+    const ok = rules.filter((r) => r[2] === "200").map((r) => r[0]);
+    for (const route of new Set(appRoutes)) expect(ok, route).toContain(route.replace("/funnel", "/*"));
+    expect(rules[rules.length - 1]).toEqual(["/*", "/index.html", "404"]);
+  });
+
+  it("lists public pages in the sitemap, points robots at it and keeps crawlers out of the admin", () => {
+    const sitemap = readFileSync("public/sitemap.xml", "utf8");
+    for (const path of ["/", "/enroll", "/privacy"]) expect(sitemap).toContain(`<loc>https://fluentbridges.com${path}</loc>`);
+    expect(sitemap).not.toContain("instructor");
+    const robots = readFileSync("public/robots.txt", "utf8");
+    expect(robots).toContain("Sitemap: https://fluentbridges.com/sitemap.xml");
+    expect(robots.match(/^User-agent:/gm)).toHaveLength(1);
+    expect(robots).toContain("Disallow: /instructor");
+  });
+
+  it("shows a not-found page that links home and is not indexed", () => {
+    render(
+      <MemoryRouter>
+        <NotFound />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { level: 1, name: "This page doesn't exist." })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Go to the homepage" })).toHaveAttribute("href", "/");
+    expect(document.querySelector('meta[name="robots"]')).toHaveAttribute("content", "noindex");
   });
 });

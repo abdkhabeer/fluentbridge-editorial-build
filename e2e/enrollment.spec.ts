@@ -204,7 +204,7 @@ test("location-based pricing: switching locations, mobile layout, and pricing re
 
 test("about section shows the instructor photo without overflow", async ({ page }) => {
   await page.goto("/#about");
-  const img = page.getByRole("img", { name: "Abdul Khabeer, Fluent Bridges English coach" });
+  const img = page.getByRole("img", { name: "Abdul Khabeer, FluentBridges English coach" });
   await img.scrollIntoViewIfNeeded();
   await expect(page.getByRole("heading", { name: "Meet Your English Coach" })).toBeVisible();
   await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth)).toBe(259);

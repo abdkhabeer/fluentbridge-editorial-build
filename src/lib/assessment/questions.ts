@@ -1,4 +1,4 @@
-// Fluent Bridges placement test: public question bank.
+// FluentBridges placement test: public question bank.
 // This file is bundled into the browser, so it must NOT contain answers.
 // The answer key and explanations live in server/assessment/answerKey.ts.
 //

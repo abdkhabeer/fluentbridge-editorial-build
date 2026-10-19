@@ -28,7 +28,7 @@ const List = ({ items }: { items: ReactNode[] }) => (
 
 const Privacy = () => {
   useEffect(() => {
-    document.title = "Privacy Policy | Fluent Bridges";
+    document.title = "Privacy Policy | FluentBridges";
   }, []);
 
   return (
@@ -53,7 +53,7 @@ const Privacy = () => {
 
         <Section title="Who we are">
           <p>
-            Fluent Bridges is an online English tutoring service led by Abdul Khabeer, an English instructor based in Cairo, Egypt. This
+            FluentBridges is an online English tutoring service led by Abdul Khabeer, an English instructor based in Cairo, Egypt. This
             policy explains what information we collect through this website, why, where it is stored, and how you can ask us to correct
             or delete it.
           </p>
