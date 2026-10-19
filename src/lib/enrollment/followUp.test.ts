@@ -77,8 +77,8 @@ describe("follow-up messages", () => {
     expect(renderSentences(["Hi {nobody}.", "Plain {text}."], { text: "words {x}" })).toBe("Plain words x.");
   });
 
-  it("uses the other-goal text, lowercased, when the goal is Other", () => {
-    expect(renderFollowUp(1, input({ primary_learning_goal: "other", other_goal_text: "Medical English" }), opts)).toContain("For medical english,");
+  it("uses the other-goal text, with only the first letter lowercased, when the goal is Other", () => {
+    expect(renderFollowUp(1, input({ primary_learning_goal: "other", other_goal_text: "Medical English" }), opts)).toContain("For medical English,");
   });
 });
 

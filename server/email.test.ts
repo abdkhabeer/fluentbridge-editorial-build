@@ -1,0 +1,77 @@
+// @vitest-environment node
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_EMAIL_FROM, RESEND_ENDPOINT, newLeadAlert, sendAlertSafely, type NewLeadInput } from "./email";
+
+const lead = (over: Partial<NewLeadInput> = {}): NewLeadInput => ({
+  id: "app_123",
+  full_name: "Sara Ali",
+  whatsapp_number: "+201012345678",
+  primary_learning_goal: "career",
+  other_goal_text: null,
+  preferred_days: ["thu", "tue"],
+  preferred_time_of_day: ["evening"],
+  timezone: "Africa/Cairo",
+  access_expires_at: null,
+  access_revoked_at: null,
+  category_scores: {
+    grammar: { correct: 6, total: 12, percent: 50 },
+    vocabulary: { correct: 4, total: 8, percent: 50 },
+    reading: { correct: 4, total: 6, percent: 67 },
+    usage: { correct: 1, total: 4, percent: 25 },
+  },
+  improvement_areas: ["Review the past simple (A2)."],
+  trial_price: "100 EGP",
+  attribution: { utm_source: "Instagram", utm_medium: null, utm_campaign: null, utm_content: null, referrer: null, landing_path: "/", captured_at: "2026-10-18T10:00:00.000Z" },
+  ...over,
+});
+const opts = { level: "A2" as const, now: new Date("2026-10-19T07:00:00Z"), trialRefundCopy: false, siteOrigin: "https://fluentbridges.com" };
+
+afterEach(() => vi.restoreAllMocks());
+
+describe("new-lead alert", () => {
+  it("lists the lead's details and links Message 1 on WhatsApp", () => {
+    const { subject, text } = newLeadAlert(lead(), opts);
+    expect(subject).toBe("New lead: Sara, A2 to B1");
+    expect(text).toContain("Name: Sara Ali\nLevel: A2 to B1\nGoal: job interviews and career development\nPreferred days: Tuesday, Thursday\nPreferred time: Evening (17:00–21:00)");
+    expect(text).toContain("Source: instagram");
+    const link = text.split("\n").find((l) => l.startsWith("https://wa.me/"))!;
+    expect(link.startsWith("https://wa.me/201012345678?text=Hi%20Sara%2C%20it's%20Abdul%20from%20FluentBridges.")).toBe(true);
+    expect(text).toContain("https://fluentbridges.com/instructor/app_123");
+    expect(text).not.toMatch(/\u2014/);
+  });
+
+  it("leaves out the source line when there is no attribution", () => {
+    expect(newLeadAlert(lead({ attribution: null }), opts).text).not.toContain("Source:");
+    expect(newLeadAlert(lead({ preferred_days: [] }), opts).text).toContain("Preferred days: Not set");
+  });
+
+  it("posts to Resend with the key, the default sender and plain text", async () => {
+    const fetch = vi.fn(async () => new Response("{}", { status: 200 }));
+    await sendAlertSafely({ apiKey: "re_test", to: "me@example.com", fetch }, { subject: "s", text: "t" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe(RESEND_ENDPOINT);
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer re_test");
+    expect(JSON.parse(init.body as string)).toEqual({ from: DEFAULT_EMAIL_FROM, to: ["me@example.com"], subject: "s", text: "t" });
+  });
+
+  it("does nothing without a key or a recipient", async () => {
+    const fetch = vi.fn();
+    await sendAlertSafely({ to: "me@example.com", fetch }, { subject: "s", text: "t" });
+    await sendAlertSafely({ apiKey: "re_test", fetch }, { subject: "s", text: "t" });
+    await sendAlertSafely(undefined, { subject: "s", text: "t" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("logs failures without personal data and never throws", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const email = newLeadAlert(lead(), opts);
+    const cfg = { apiKey: "re_test", to: "me@example.com" };
+    await sendAlertSafely({ ...cfg, fetch: async () => new Response("bad sender me@example.com", { status: 422 }) }, email);
+    await sendAlertSafely({ ...cfg, fetch: async () => Promise.reject(new TypeError("getaddrinfo Sara")) }, email);
+    expect(log.mock.calls.map((c) => c.join(" "))).toEqual([
+      "[email] new-lead alert failed: status 422",
+      "[email] new-lead alert failed: network error",
+    ]);
+  });
+});

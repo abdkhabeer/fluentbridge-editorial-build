@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import { randomBytes } from "node:crypto";
 import { QUESTIONS } from "../src/lib/assessment/questions";
 import { emptyDraft, type EnrollmentDraft } from "../src/lib/enrollment/schema";
@@ -620,6 +620,47 @@ describe("funnel events and attribution", () => {
     expect((await app(res.body.application_id))!).toMatchObject({ attribution: { utm_source: "Instagram", landing_path: "/" }, analytics_session_id: sid });
     const list = await call("GET", "/api/instructor/leads", undefined, await signIn());
     expect(list.body.leads[0].source).toBe("instagram");
+  });
+});
+
+describe("new-lead alert email", () => {
+  const finish = async () => {
+    const { t, res } = await submit();
+    await call("POST", "/api/assessment/objective", { answers: allCorrect }, asStudent(t));
+    return { t, id: res.body.application_id as string, done: await call("POST", "/api/assessment/complete", { skipped: true }, asStudent(t)) };
+  };
+
+  it("sends one alert when a lead completes the test, not again on a repeat", async () => {
+    const fetch = vi.fn(async () => new Response("{}", { status: 200 }));
+    ctx.config.email = { apiKey: "re_test", to: "alerts@example.com", fetch };
+    const { t, id } = await finish();
+    await call("POST", "/api/assessment/complete", { skipped: true }, asStudent(t));
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const body = JSON.parse((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(body.subject).toBe("New lead: Mona, C2");
+    expect(body.text).toContain("Goal: business English and workplace communication");
+    expect(body.text).toContain(`https://fluentbridges.com/instructor/${id}`);
+    expect(body.text).toMatch(/https:\/\/wa\.me\/201012345678\?text=Hi%20Mona/);
+  });
+
+  it("never blocks the lead when sending fails, and hands the work to waitUntil when available", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    ctx.config.email = { apiKey: "re_test", to: "alerts@example.com", fetch: async () => Promise.reject(new Error("down")) };
+    const waited: Promise<unknown>[] = [];
+    ctx.waitUntil = (w) => waited.push(w);
+    const { done, id } = await finish();
+    expect(done.status).toBe(200);
+    expect(done.body.result.estimated_cefr_level).toBe("C2");
+    expect(waited).toHaveLength(1);
+    await expect(waited[0]).resolves.toBeUndefined();
+    expect((await app(id))!.lead_status).toBe("assessment_completed");
+  });
+
+  it("is off without RESEND_API_KEY", async () => {
+    const fetch = vi.fn();
+    ctx.config.email = { to: "alerts@example.com", fetch };
+    expect((await finish()).done.status).toBe(200);
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 

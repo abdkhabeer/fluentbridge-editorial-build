@@ -88,7 +88,7 @@ export type FollowUpOptions = { now: Date; trialRefundCopy: boolean };
 
 export type Vars = Partial<Record<string, string>>;
 
-const DAY_NAMES: Record<Day, string> = {
+export const DAY_NAMES: Record<Day, string> = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -152,11 +152,14 @@ export const topGap = (areas: string[]): string | null => {
 
 export const tipFor = (gap: string | null) => (gap && TIPS[gap.replace(/^the /, "")]) || FALLBACK_TIP;
 
-export const goalText = (input: Pick<FollowUpInput, "primary_learning_goal" | "other_goal_text">) =>
-  (input.primary_learning_goal === "other" && input.other_goal_text
-    ? input.other_goal_text
-    : labelFor(LEARNING_GOALS, input.primary_learning_goal)
-  ).toLowerCase();
+/** The goal for use mid-sentence: first letter lowercased only, so "English" keeps its capital. */
+export const goalText = (input: Pick<FollowUpInput, "primary_learning_goal" | "other_goal_text">) => {
+  const goal =
+    input.primary_learning_goal === "other" && input.other_goal_text
+      ? input.other_goal_text
+      : labelFor(LEARNING_GOALS, input.primary_learning_goal);
+  return goal.charAt(0).toLowerCase() + goal.slice(1);
+};
 
 export const followUpVars = (input: FollowUpInput, { now, trialRefundCopy }: FollowUpOptions): Vars => {
   const days = upcomingDays(input.preferred_days, now, input.timezone);

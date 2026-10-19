@@ -373,7 +373,7 @@ describe("results page", () => {
     render(<ResultsView result={result} />);
     expect(
       screen.getByText(
-        "Your reading comprehension is your strongest skill. This test can't measure speaking, so the next step is a 30 minute trial. I'll hear you speak and send you a written plan for business english and workplace communication.",
+        "Your reading comprehension is your strongest skill. This test can't measure speaking, so the next step is a 30 minute trial. I'll hear you speak and send you a written plan for business English and workplace communication.",
       ),
     ).toBeInTheDocument();
     // Without BOOKING_URL, booking falls back to WhatsApp.

@@ -66,6 +66,7 @@ import { ACCESS_TTL_DAYS, PROSPECT_RETENTION_DAYS } from "../src/lib/enrollment/
 import { keys, mapLimit, type Store } from "./store";
 import { MAX_FUNNEL_DAYS, funnelReport, recordEvent } from "./analytics";
 import { parseAttribution, parseEvent, sourceOf, SESSION_ID, type Attribution } from "../src/lib/analytics/events";
+import { emailEnabled, newLeadAlert, sendAlertSafely, type EmailConfig } from "./email";
 
 export const CONSENT_VERSION = "2026-10-enrollment-v2";
 export { ACCESS_TTL_DAYS, PROSPECT_RETENTION_DAYS };
@@ -96,9 +97,17 @@ export type ApiConfig = {
    * (FEATURE_LEAD_ATTRIBUTION). Off until the consent wording that covers it is approved.
    */
   leadAttribution?: boolean;
+  /** New-lead alert email through Resend (RESEND_API_KEY, ALERT_EMAIL_TO, EMAIL_FROM). Off when unset. */
+  email?: EmailConfig;
 };
 
-export type ApiContext = { store: Store; config: ApiConfig; clientIp?: string };
+export type ApiContext = {
+  store: Store;
+  config: ApiConfig;
+  clientIp?: string;
+  /** Keeps the function alive for work that finishes after the response (Netlify context.waitUntil). */
+  waitUntil?: (work: Promise<unknown>) => void;
+};
 
 // ── Records ──
 
@@ -475,7 +484,9 @@ const completeAssessment = async (req: Request, ctx: ApiContext) => {
   const skipped = body.skipped === true || !text;
   const now = nowIso(ctx);
 
+  let justCompleted = false;
   const { value: assessment } = await update<AssessmentRecord>(ctx.store, keys.assessment(index.assessment_id), (a) => {
+    justCompleted = false;
     if (a.status === "completed") return a;
     if (a.status !== "writing" || !a.objective) {
       throw new HttpError(409, "Please finish the multiple-choice questions first.", { status: a.status });
@@ -498,6 +509,7 @@ const completeAssessment = async (req: Request, ctx: ApiContext) => {
     const overall = overallScore(a.objective.objective_score.percent, null);
     Object.assign(a, feedback, { status: "completed" as const, completed_at: now, updated_at: now, overall_score: overall.overall });
     a.objective.scoring_method = overall.method;
+    justCompleted = true;
     return a;
   });
 
@@ -514,7 +526,25 @@ const completeAssessment = async (req: Request, ctx: ApiContext) => {
       })
     ).value;
   }
+  if (justCompleted) await alertNewLead(req, ctx, latestApplication, assessment);
   return json(200, { result: studentResult(latestApplication, assessment) });
+};
+
+/** Emails the instructor about a lead who just finished the test. Never throws. With waitUntil it runs after the response. */
+const alertNewLead = async (req: Request, ctx: ApiContext, application: ApplicationRecord, a: AssessmentRecord) => {
+  if (!emailEnabled(ctx.config.email) || !a.objective) return;
+  const email = newLeadAlert(
+    {
+      ...application,
+      category_scores: a.objective.category_scores,
+      improvement_areas: a.improvement_areas,
+      trial_price: trialPriceFor(application.country, application.city),
+    },
+    { level: a.objective.estimated_cefr_level, now: nowDate(ctx), trialRefundCopy: false, siteOrigin: new URL(req.url).origin },
+  );
+  const work = sendAlertSafely(ctx.config.email, email);
+  if (ctx.waitUntil) ctx.waitUntil(work);
+  else await work;
 };
 
 /** "Remove my data from this device": revokes the access token so it can no longer read the records. */
