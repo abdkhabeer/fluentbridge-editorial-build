@@ -527,7 +527,7 @@ const Detail = ({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
             {app.lesson_format === "small_group" && <Row label="Group">{labelFor(GROUP_STATUSES, app.group_status ?? "")}</Row>}
             <Row label="Per week">{labelFor(WEEKLY_FREQUENCIES, app.preferred_classes_per_week)}</Row>
             <Row label="Package">{snap ? describeSnapshot(snap) : "Needs help choosing"}</Row>
-            <Row label="Quoted price">{quoted && `${formatMoney(quoted.amount, quoted.currency)}${snap?.billing === "monthly" ? " per month" : ""} (snapshot at submission)`}</Row>
+            <Row label="Quoted price">{quoted && `${formatMoney(quoted.amount, quoted.currency)}${snap?.billing === "monthly" ? " per 4 weeks" : ""} (snapshot at submission)`}</Row>
             <Row label="Payment">{labelFor(PAYMENT_METHODS, app.preferred_payment_method)}</Row>
             <Row label="Days">{app.preferred_days.map((d) => labelFor(DAYS, d)).join(", ")}</Row>
             <Row label="Time of day">{app.preferred_time_of_day.map((t) => labelFor(TIMES_OF_DAY, t)).join(", ")}</Row>

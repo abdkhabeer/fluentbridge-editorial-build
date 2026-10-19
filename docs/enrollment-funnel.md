@@ -13,7 +13,7 @@ A static Vite + React SPA on Netlify, with Netlify Functions and Netlify Blobs.
 
 | Piece | Where |
 |---|---|
-| Pricing (single source of truth) | `src/data/pricing.ts`: prices per location (Cairo EGP, Saudi Arabia SAR, United States USD; UK GBP pending approval in `UK_GBP_PRICING`), the location rules, and inquiry copy. Used by `PricingSection`, the FAQ, the contact form, the funnel, and the server-side price snapshot |
+| Pricing (single source of truth) | `src/data/pricing.ts`: prices per location (Cairo EGP; Saudi Arabia SAR, United States USD and United Kingdom GBP derived from `HARD_CURRENCY_LIST_PRICE` and `PLAN_DISCOUNTS`; trial prices in `TRIAL_PRICES`), the location rules, and inquiry copy. Used by `PricingSection`, the FAQ, the contact form, the funnel, and the server-side price snapshot |
 | Validation (client + server) | `src/lib/enrollment/schema.ts` (zod), `phone.ts`, `flags.ts` |
 | Data-handling periods | `src/lib/enrollment/policy.ts`, enforced by the server and shown on the privacy page |
 | API (framework-agnostic `Request → Response`) | `server/api.ts` |
@@ -29,10 +29,10 @@ A static Vite + React SPA on Netlify, with Netlify Functions and Netlify Blobs.
 - The pricing section's location selector defaults to Cairo (or the visitor's last choice, or the country on an enrollment form in progress). It never uses IP.
 - In the funnel, the location comes from step 1: `regionForLocation(country, city)`. Egypt counts as Cairo only when the city matches Cairo or a Cairo Governorate district (`isCairoCity`); Giza is "elsewhere in Egypt".
 - `packageLocationError` lets a student choose only their own location's prices. The funnel and the server (`parseApplication`) both apply it, so a 422 is returned for another location's package.
-- Locations without published prices (elsewhere in Egypt, the UK until approved, other countries) can choose "I need help choosing"; the lead gets the `pricing_quote_needed` review flag.
+- Locations without published prices (elsewhere in Egypt, other countries) can choose "I need help choosing"; the lead gets the `pricing_quote_needed` review flag.
 - Price snapshots now include `currency`, `price`, `billing` and `classes_per_week`. `price_egp` is set for EGP only. Snapshots saved before this change have no `currency` and are read as EGP.
 - Pricing CTAs open the contact form with `?inquiry=egypt-pricing|uk-pricing|consultation`. New contact fields must also be added to the hidden form in `index.html`, or Netlify Forms drops them.
-- To publish UK prices: fill in `UK_GBP_PRICING.prices` and set `approved: true`.
+- Hard-currency prices: single lessons cost `HARD_CURRENCY_LIST_PRICE[currency]`; 12- and 20-class 4-week plans are discounted by `PLAN_DISCOUNTS` (5% and 10%). GBP plans use placeholder overrides (170 and 265) in `PLAN_PRICE_OVERRIDES`. Per-class prices and "Save" amounts are computed.
 
 ### Deploy-context isolation (`server/runtime.ts`)
 

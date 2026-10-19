@@ -4,11 +4,11 @@ import {
   HELP_CHOOSING_PACKAGE,
   PACKAGE_VALIDITY_DAYS,
   formatMoney,
+  formatPerClass,
   getRegion,
   packageLocationError,
   perLessonPrice,
   regionForLocation,
-  trialLesson,
   type Plan,
 } from "@/data/pricing";
 import { COUNTRIES } from "@/lib/enrollment/countries";
@@ -268,11 +268,11 @@ export const GoalsStep = ({ draft, update, errors }: StepProps) => {
 const planDescription = (plan: Plan) => {
   const price = formatMoney(plan.amount, plan.currency);
   if (plan.billing === "monthly") {
-    return [`Monthly plan`, `${price} per month`, `${plan.lessons} classes per ${BILLING_PERIOD_WEEKS}-week billing period`].join(" · ");
+    return [`${price} per ${BILLING_PERIOD_WEEKS} weeks`, `${formatPerClass(plan.amount, plan.lessons, plan.currency)} per class`, `${plan.classesPerWeek} classes per week`].join(" · ");
   }
   const parts = [plan.lessons === 1 ? "1 lesson, 60 minutes" : `${plan.lessons} lessons`, `${price}${plan.perStudent ? " per student" : ""}`];
   if (plan.lessons > 1) {
-    parts.push(`${formatMoney(perLessonPrice(plan), plan.currency)} per lesson`, `valid for ${PACKAGE_VALIDITY_DAYS} days`);
+    parts.push(`${formatPerClass(plan.amount, plan.lessons, plan.currency)} per lesson`, `valid for ${PACKAGE_VALIDITY_DAYS} days`);
   }
   return parts.join(" · ");
 };
@@ -389,9 +389,9 @@ export const LessonsStep = ({ draft, update, errors }: StepProps) => {
                 ...(region.trial
                   ? [
                       {
-                        value: trialLesson.id,
-                        label: `Trial lesson: ${trialLesson.price}`,
-                        description: "Credited toward your first 8- or 12-lesson package if you enroll.",
+                        value: region.trial.id,
+                        label: `Trial lesson: ${region.trial.price}`,
+                        description: `Credited toward your first ${region.id === "cairo" ? "8- or 12-lesson " : ""}package if you enroll.`,
                       },
                     ]
                   : []),

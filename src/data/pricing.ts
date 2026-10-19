@@ -5,7 +5,8 @@
 // and the server apply the same rule. src/data/pricing.test.ts pins every
 // published amount.
 //
-// Prices are never converted between currencies. A location without approved
+// Prices are never converted between currencies. Per-class prices and "Save"
+// amounts are computed here, never typed in by hand. A location without approved
 // prices shows a request-pricing or consultation option instead.
 
 export type Currency = "EGP" | "SAR" | "USD" | "GBP";
@@ -67,281 +68,256 @@ export type PricingRegion = {
   /** Published prices. Empty means the region shows `inquiry` instead. */
   tracks: Track[];
   inquiry: Inquiry;
-  /** Whether the 100 EGP trial lesson is offered. */
-  trial: boolean;
+  /** The trial lesson offered here, or null. */
+  trial: TrialLesson | null;
   /** Payment methods listed on the pricing section. */
   paymentMethods: string[];
   notes: string[];
 };
 
 export const PACKAGE_VALIDITY_DAYS = 30;
-/** A monthly plan's billing period: classes per week × 4 weeks. */
+/** A 4-week plan's billing period: classes per week × 4 weeks. */
 export const BILLING_PERIOD_WEEKS = 4;
 const LESSON_MINUTES = 60;
+const TRIAL_MINUTES = 30;
 const CTA = "Choose & Start Enrollment";
 
+const formatNumber = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+
+/** "1,500 EGP", "450 SAR", "$120 USD". Always shows the currency code. */
+export const formatMoney = (n: number, currency: Currency) =>
+  currency === "USD" ? `$${formatNumber(n)} USD` : `${formatNumber(n)} ${currency}`;
+
+/** Price per class, to two decimals, marked "≈" when rounded ("187.50 EGP", "≈ 183.33 EGP", "$19 USD"). */
+export const formatPerClass = (amount: number, classes: number, currency: Currency) => {
+  const exact = amount / classes;
+  const rounded = Math.round(exact * 100) / 100;
+  const text = Number.isInteger(rounded)
+    ? formatNumber(rounded)
+    : rounded.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = currency === "USD" ? `$${text} USD` : `${text} ${currency}`;
+  return rounded === exact ? money : `≈ ${money}`;
+};
+
+/** What a package saves compared with buying the same number of single lessons. */
+export const savingsAmount = (singleAmount: number, plan: Pick<Plan, "amount" | "lessons">) => singleAmount * plan.lessons - plan.amount;
+
+const savingsLabel = (singleAmount: number, plan: Plan) => {
+  const saved = savingsAmount(singleAmount, plan);
+  return saved > 0 ? `Save ${formatMoney(saved, plan.currency)}${plan.perStudent ? " per student" : ""}` : null;
+};
+
 // ── Cairo, Egypt (EGP) ──
-// Do not change these amounts without the owner's approval.
+// Do not change these amounts without the owner's approval. Per-lesson prices
+// and "Save" amounts are computed from them.
+
+type CairoPlanCopy = Pick<Plan, "label" | "description" | "features" | "highlight">;
+
+const cairoTrack = (t: {
+  id: TrackId;
+  heading: string;
+  blurb: string;
+  perStudent: boolean;
+  prices: { single: number; eight: number; twelve: number };
+  singleDuration: string;
+  copy: [CairoPlanCopy, CairoPlanCopy, CairoPlanCopy];
+}): Track => {
+  const unit = t.perStudent ? "EGP per student" : "EGP";
+  const base = { currency: "EGP" as const, billing: "package" as const, classesPerWeek: null, perStudent: t.perStudent, unit, cta: CTA };
+  const single: Plan = {
+    ...base,
+    ...t.copy[0],
+    id: `${t.id}-single`,
+    lessons: 1,
+    amount: t.prices.single,
+    title: "Single Lesson",
+    duration: t.singleDuration,
+    features: t.perStudent ? [`${formatMoney(t.prices.single, "EGP")} per student`, ...t.copy[0].features] : t.copy[0].features,
+  };
+  const pack = (lessons: 8 | 12, amount: number, copy: CairoPlanCopy): Plan => {
+    const plan: Plan = { ...base, ...copy, id: `${t.id}-${lessons}`, lessons, amount, title: `${lessons} Lessons`, duration: "" };
+    plan.duration = `${formatPerClass(amount, lessons, "EGP")} per lesson${t.perStudent ? ", per student" : ""}`;
+    const saved = savingsLabel(t.prices.single, plan);
+    plan.features = saved ? [saved, ...copy.features] : copy.features;
+    return plan;
+  };
+  return { id: t.id, heading: t.heading, blurb: t.blurb, plans: [single, pack(8, t.prices.eight, t.copy[1]), pack(12, t.prices.twelve, t.copy[2])] };
+};
 
 const cairoTracks: Track[] = [
-  {
-    id: "student",
-    heading: "Egyptian Student & General English",
-    blurb:
-      "Affordable one-on-one coaching for Egyptian students and anyone building everyday fluency and confidence.",
-    plans: [
-      {
-        id: "student-single",
-        lessons: 1,
-        amount: 200,
-        currency: "EGP",
-        billing: "package",
-        classesPerWeek: null,
-        perStudent: false,
-        label: "Student Rate",
-        title: "Single Lesson",
-        unit: "EGP",
-        duration: "60 minutes",
-        description: "One-on-one instruction tailored to your goals. No package required.",
-        features: ["Fully personalized lesson", "Feedback after each session"],
-        cta: CTA,
-        highlight: false,
-      },
-      {
-        id: "student-8",
-        lessons: 8,
-        amount: 1500,
-        currency: "EGP",
-        billing: "package",
-        classesPerWeek: null,
-        perStudent: false,
-        label: "Most Popular",
-        title: "8 Lessons",
-        unit: "EGP",
-        duration: "187.50 EGP per lesson",
-        description: "Consistent weekly practice for real, measurable progress.",
-        features: ["Save 100 EGP", "Priority scheduling", "Monthly progress review"],
-        cta: CTA,
-        highlight: true,
-      },
-      {
-        id: "student-12",
-        lessons: 12,
-        amount: 2200,
-        currency: "EGP",
-        billing: "package",
-        classesPerWeek: null,
-        perStudent: false,
-        label: "Best Value",
-        title: "12 Lessons",
-        unit: "EGP",
-        duration: "≈ 183.33 EGP per lesson",
-        description: "Long-term practice at the lowest per-lesson rate.",
-        features: ["Save 200 EGP", "Priority scheduling", "One free make-up lesson"],
-        cta: CTA,
-        highlight: false,
-      },
-    ],
-  },
-  {
-    id: "group",
-    heading: "Small Group English",
-    blurb:
-      "Groups of 2–4 students. All prices below are per student, not per group. Each student pays their own rate.",
-    plans: [
-      {
-        id: "group-single",
-        lessons: 1,
-        amount: 150,
-        currency: "EGP",
-        billing: "package",
-        classesPerWeek: null,
-        perStudent: true,
-        label: "2–4 Students",
-        title: "Single Lesson",
-        unit: "EGP per student",
-        duration: "60 minutes · 2–4 students per group",
-        description: "Practice English in a social setting at the most affordable rate.",
-        features: ["150 EGP per student", "Shared speaking practice"],
-        cta: CTA,
-        highlight: false,
-      },
-      {
-        id: "group-8",
-        lessons: 8,
-        amount: 1100,
-        currency: "EGP",
-        billing: "package",
-        classesPerWeek: null,
-        perStudent: true,
-        label: "Most Popular",
-        title: "8 Lessons",
-        unit: "EGP per student",
-        duration: "137.50 EGP per lesson, per student",
-        description: "A steady weekly rhythm for a study group, colleagues, or friends.",
-        features: ["Save 100 EGP per student", "Priority scheduling", "Monthly progress review"],
-        cta: CTA,
-        highlight: true,
-      },
-      {
-        id: "group-12",
-        lessons: 12,
-        amount: 1500,
-        currency: "EGP",
-        billing: "package",
-        classesPerWeek: null,
-        perStudent: true,
-        label: "Best Value",
-        title: "12 Lessons",
-        unit: "EGP per student",
-        duration: "125 EGP per lesson, per student",
-        description: "The lowest per-lesson rate offered by Fluent Bridges.",
-        features: ["Save 300 EGP per student", "Priority scheduling", "One free make-up lesson"],
-        cta: CTA,
-        highlight: false,
-      },
-    ],
-  },
-  {
-    id: "professional",
-    heading: "Professional English",
-    blurb:
-      "For career development, workplace communication, interviews, presentations, and meetings.",
-    plans: [
-      {
-        id: "professional-single",
-        lessons: 1,
-        amount: 500,
-        currency: "EGP",
-        billing: "package",
-        classesPerWeek: null,
-        perStudent: false,
-        label: "Professional",
-        title: "Single Lesson",
-        unit: "EGP",
-        duration: "60 minutes",
-        description: "Focused coaching built around your role and your career goals.",
-        features: ["Industry-specific vocabulary", "Real materials from your work"],
-        cta: CTA,
-        highlight: false,
-      },
-      {
-        id: "professional-8",
-        lessons: 8,
-        amount: 3600,
-        currency: "EGP",
-        billing: "package",
-        classesPerWeek: null,
-        perStudent: false,
-        label: "Most Popular",
-        title: "8 Lessons",
-        unit: "EGP",
-        duration: "450 EGP per lesson",
-        description: "A focused block to sharpen how you speak and write at work.",
-        features: ["Save 400 EGP", "Interview & presentation prep", "Priority scheduling"],
-        cta: CTA,
-        highlight: true,
-      },
-      {
-        id: "professional-12",
-        lessons: 12,
-        amount: 5100,
-        currency: "EGP",
-        billing: "package",
-        classesPerWeek: null,
-        perStudent: false,
-        label: "Best Value",
-        title: "12 Lessons",
-        unit: "EGP",
-        duration: "425 EGP per lesson",
-        description: "Built around a specific role, deadline, or promotion.",
-        features: ["Save 900 EGP", "Fully customized curriculum", "One free make-up lesson"],
-        cta: CTA,
-        highlight: false,
-      },
-    ],
-  },
-  {
+  cairoTrack({
     id: "business",
     heading: "Business English",
-    blurb:
-      "The premium offering, for executives, entrepreneurs, managers, and teams who need advanced English for business.",
-    plans: [
+    blurb: "The premium offering, for executives, entrepreneurs, managers, and teams who need advanced English for business.",
+    perStudent: false,
+    prices: { single: 900, eight: 6800, twelve: 9600 },
+    singleDuration: "60 minutes",
+    copy: [
       {
-        id: "business-single",
-        lessons: 1,
-        amount: 900,
-        currency: "EGP",
-        billing: "package",
-        classesPerWeek: null,
-        perStudent: false,
         label: "Premium",
-        title: "Single Lesson",
-        unit: "EGP",
-        duration: "60 minutes",
         description: "Advanced business communication, negotiation, and executive presence.",
         features: ["Tailored to your company", "Feedback after each session"],
-        cta: CTA,
         highlight: false,
       },
       {
-        id: "business-8",
-        lessons: 8,
-        amount: 6800,
-        currency: "EGP",
-        billing: "package",
-        classesPerWeek: null,
-        perStudent: false,
         label: "Most Popular",
-        title: "8 Lessons",
-        unit: "EGP",
-        duration: "850 EGP per lesson",
         description: "High-intensity coaching for meetings, pitches, and negotiations.",
-        features: ["Save 400 EGP", "Priority scheduling", "Monthly progress review"],
-        cta: CTA,
+        features: ["Priority scheduling", "Monthly progress review"],
         highlight: true,
       },
       {
-        id: "business-12",
-        lessons: 12,
-        amount: 9600,
-        currency: "EGP",
-        billing: "package",
-        classesPerWeek: null,
-        perStudent: false,
         label: "Best Value",
-        title: "12 Lessons",
-        unit: "EGP",
-        duration: "800 EGP per lesson",
         description: "A full programme for sustained executive-level communication.",
-        features: ["Save 1,200 EGP", "Fully customized curriculum", "One free make-up lesson"],
-        cta: CTA,
+        features: ["Fully customized curriculum", "One free make-up lesson"],
         highlight: false,
       },
     ],
-  },
+  }),
+  cairoTrack({
+    id: "professional",
+    heading: "Professional English",
+    blurb: "For career development, workplace communication, interviews, presentations, and meetings.",
+    perStudent: false,
+    prices: { single: 500, eight: 3600, twelve: 5100 },
+    singleDuration: "60 minutes",
+    copy: [
+      {
+        label: "Professional",
+        description: "Focused coaching built around your role and your career goals.",
+        features: ["Industry-specific vocabulary", "Real materials from your work"],
+        highlight: false,
+      },
+      {
+        label: "Most Popular",
+        description: "A focused block to sharpen how you speak and write at work.",
+        features: ["Interview & presentation prep", "Priority scheduling"],
+        highlight: true,
+      },
+      {
+        label: "Best Value",
+        description: "Built around a specific role, deadline, or promotion.",
+        features: ["Fully customized curriculum", "One free make-up lesson"],
+        highlight: false,
+      },
+    ],
+  }),
+  cairoTrack({
+    id: "group",
+    heading: "Small Group English",
+    blurb: "Groups of 2–4 students. All prices below are per student, not per group. Each student pays their own rate.",
+    perStudent: true,
+    prices: { single: 150, eight: 1100, twelve: 1500 },
+    singleDuration: "60 minutes · 2–4 students per group",
+    copy: [
+      {
+        label: "2–4 Students",
+        description: "Practice English in a social setting at the most affordable rate.",
+        features: ["Shared speaking practice"],
+        highlight: false,
+      },
+      {
+        label: "Most Popular",
+        description: "A steady weekly rhythm for a study group, colleagues, or friends.",
+        features: ["Priority scheduling", "Monthly progress review"],
+        highlight: true,
+      },
+      {
+        label: "Best Value",
+        description: "The lowest per-lesson rate offered by FluentBridges.",
+        features: ["Priority scheduling", "One free make-up lesson"],
+        highlight: false,
+      },
+    ],
+  }),
+  cairoTrack({
+    id: "student",
+    heading: "Student English",
+    blurb: "Reduced rate for school and university students. Student ID required. Limited places each month.",
+    perStudent: false,
+    prices: { single: 200, eight: 1500, twelve: 2200 },
+    singleDuration: "60 minutes",
+    copy: [
+      {
+        label: "Student Rate",
+        description: "One-on-one instruction tailored to your goals. No package required.",
+        features: ["Fully personalized lesson", "Feedback after each session"],
+        highlight: false,
+      },
+      {
+        label: "Most Popular",
+        description: "Consistent weekly practice for real, measurable progress.",
+        features: ["Priority scheduling", "Monthly progress review"],
+        highlight: true,
+      },
+      {
+        label: "Best Value",
+        description: "Long-term practice at the lowest per-lesson rate.",
+        features: ["Priority scheduling", "One free make-up lesson"],
+        highlight: false,
+      },
+    ],
+  }),
 ];
 
-export const trialLesson = {
-  id: "trial",
-  title: "Trial Lesson",
-  amount: 100,
-  currency: "EGP" as Currency,
-  minutes: 30,
-  price: "100 EGP / 30 minutes",
-  description:
-    "A relaxed 30-minute first session to assess your level and discuss your goals, not a full 60-minute lesson. The 100 EGP fee is credited toward your first 8- or 12-lesson package if you enroll.",
+// ── Trial lessons ──
+
+export type TrialLesson = {
+  id: string;
+  title: string;
+  amount: number;
+  currency: Currency;
+  minutes: number;
+  /** "100 EGP / 30 minutes" */
+  price: string;
+  description: string;
 };
+
+/** 30-minute trial lesson prices. The fee is credited to the student's first package. */
+export const TRIAL_PRICES: Record<Currency, number> = { EGP: 100, USD: 10, SAR: 38, GBP: 8 };
+
+const trialFor = (id: string, currency: Currency, credit: string): TrialLesson => ({
+  id,
+  title: "Trial Lesson",
+  amount: TRIAL_PRICES[currency],
+  currency,
+  minutes: TRIAL_MINUTES,
+  price: `${formatMoney(TRIAL_PRICES[currency], currency)} / ${TRIAL_MINUTES} minutes`,
+  description: `A relaxed ${TRIAL_MINUTES}-minute first session to assess your level and discuss your goals, not a full ${LESSON_MINUTES}-minute lesson. The ${formatMoney(TRIAL_PRICES[currency], currency)} fee is credited toward ${credit} if you enroll.`,
+});
+
+/** The Cairo (EGP) trial. Its id stays "trial" so existing applications keep their meaning. */
+export const trialLesson = trialFor("trial", "EGP", "your first 8- or 12-lesson package");
 
 // ── Saudi Arabia (SAR), United States (USD), United Kingdom (GBP) ──
 
-type InternationalPrices = { single: number; threePerWeek: number; fivePerWeek: number };
+export type HardCurrency = Exclude<Currency, "EGP">;
 type InternationalTrackId = "ksa" | "us" | "uk";
+/** Classes in each 4-week plan (3 or 5 classes per week). */
+export type PlanSize = 12 | 20;
 
-const singleLesson = (id: InternationalTrackId, currency: Currency, amount: number): Plan => ({
+/**
+ * List price of one class in each hard currency. Single lessons cost this, and
+ * 4-week plans are discounted from it (PLAN_DISCOUNTS), so changing USD from
+ * 20 to 28 is this one edit.
+ */
+export const HARD_CURRENCY_LIST_PRICE: Record<HardCurrency, number> = { USD: 20, SAR: 75, GBP: 15 };
+
+/** Discount on the list price for each 4-week plan. */
+export const PLAN_DISCOUNTS: Record<PlanSize, number> = { 12: 0.05, 20: 0.1 };
+
+/**
+ * Plan prices that don't follow the discount rule. GBP is a placeholder until
+ * the owner confirms it (the rule would give 171 and 270).
+ */
+const PLAN_PRICE_OVERRIDES: Partial<Record<HardCurrency, Record<PlanSize, number>>> = { GBP: { 12: 170, 20: 265 } };
+
+export const planPrice = (currency: HardCurrency, classes: PlanSize) =>
+  PLAN_PRICE_OVERRIDES[currency]?.[classes] ?? Math.round(HARD_CURRENCY_LIST_PRICE[currency] * classes * (1 - PLAN_DISCOUNTS[classes]));
+
+const singleLesson = (id: InternationalTrackId, currency: HardCurrency): Plan => ({
   id: `${id}-single`,
   lessons: 1,
-  amount,
+  amount: HARD_CURRENCY_LIST_PRICE[currency],
   currency,
   billing: "package",
   classesPerWeek: null,
@@ -356,67 +332,48 @@ const singleLesson = (id: InternationalTrackId, currency: Currency, amount: numb
   highlight: false,
 });
 
-const monthlyPlan = (id: InternationalTrackId, currency: Currency, classesPerWeek: number, amount: number): Plan => {
-  const lessons = classesPerWeek * BILLING_PERIOD_WEEKS;
-  return {
+const fourWeekPlan = (id: InternationalTrackId, currency: HardCurrency, classesPerWeek: 3 | 5): Plan => {
+  const lessons = (classesPerWeek * BILLING_PERIOD_WEEKS) as PlanSize;
+  const plan: Plan = {
+    // Ids keep "monthly" so earlier applications still match.
     id: `${id}-monthly-${classesPerWeek}`,
     lessons,
-    amount,
+    amount: planPrice(currency, lessons),
     currency,
     billing: "monthly",
     classesPerWeek,
     perStudent: false,
-    label: "Monthly Plan",
-    title: `${classesPerWeek} Classes per Week`,
-    unit: `${currency} per month`,
-    duration: `${lessons} classes per month · ${LESSON_MINUTES} minutes each`,
-    description: `${classesPerWeek} one-on-one lessons every week, billed monthly.`,
-    features: [`${classesPerWeek} classes per week`, `${lessons} classes per ${BILLING_PERIOD_WEEKS}-week billing period`],
+    label: "4-Week Plan",
+    title: `${lessons} Classes per 4 Weeks`,
+    unit: `${currency} per 4 weeks`,
+    duration: "",
+    description: `${classesPerWeek} one-on-one lessons every week, billed every ${BILLING_PERIOD_WEEKS} weeks.`,
+    features: [],
     cta: CTA,
     highlight: false,
   };
+  plan.duration = `${formatPerClass(plan.amount, lessons, currency)} per class · ${LESSON_MINUTES} minutes each`;
+  const saved = savingsLabel(HARD_CURRENCY_LIST_PRICE[currency], plan);
+  plan.features = [...(saved ? [saved] : []), `${classesPerWeek} classes per week`, `Billed every ${BILLING_PERIOD_WEEKS} weeks`];
+  return plan;
 };
 
-const internationalTrack = (id: InternationalTrackId, place: string, currency: Currency, p: InternationalPrices): Track => ({
+const internationalTrack = (id: InternationalTrackId, place: string, currency: HardCurrency): Track => ({
   id,
   heading: `One-on-One English, ${place} (${currency})`,
-  blurb: `Single lessons, or a monthly plan of 3 or 5 classes per week billed every ${BILLING_PERIOD_WEEKS} weeks.`,
-  plans: [singleLesson(id, currency, p.single), monthlyPlan(id, currency, 3, p.threePerWeek), monthlyPlan(id, currency, 5, p.fivePerWeek)],
+  blurb: `Single lessons, or a 4-week plan of 12 or 20 classes.`,
+  plans: [singleLesson(id, currency), fourWeekPlan(id, currency, 3), fourWeekPlan(id, currency, 5)],
 });
-
-// Do not change these amounts without the owner's approval.
-const ksaTracks = [internationalTrack("ksa", "Saudi Arabia", "SAR", { single: 40, threePerWeek: 450, fivePerWeek: 680 })];
-const usTracks = [internationalTrack("us", "United States", "USD", { single: 10, threePerWeek: 120, fivePerWeek: 180 })];
-
-export type PendingPrices = {
-  approved: boolean;
-  prices: { [K in keyof InternationalPrices]: number | null };
-};
-
-/**
- * UK prices in GBP, not yet approved. To publish them, fill in all three
- * amounts and set `approved: true`. The pricing section, the enrollment funnel
- * and the server then offer them with no other changes.
- */
-export const UK_GBP_PRICING: PendingPrices = {
-  approved: false,
-  prices: { single: null, threePerWeek: null, fivePerWeek: null },
-};
-
-/** UK tracks for a pricing config: none until it is approved and complete. */
-export const ukTracksFor = ({ approved, prices: { single, threePerWeek, fivePerWeek } }: PendingPrices): Track[] =>
-  approved && single != null && threePerWeek != null && fivePerWeek != null
-    ? [internationalTrack("uk", "United Kingdom", "GBP", { single, threePerWeek, fivePerWeek })]
-    : [];
 
 // ── Locations ──
 
 const ONLINE_NOTES = ["Lessons conducted via Zoom or Google Meet", "All levels welcome, from beginner to advanced"];
 
-const internationalNotes = (currency: Currency) => [
+const internationalNotes = (currency: HardCurrency) => [
   `All prices are in ${currency}`,
-  `Monthly plans include 12 classes (3 per week) or 20 classes (5 per week) in each ${BILLING_PERIOD_WEEKS}-week billing period`,
+  `4-week plans include 12 classes (3 per week) or 20 classes (5 per week)`,
   `Lessons are ${LESSON_MINUTES} minutes`,
+  `Trial lessons are ${TRIAL_MINUTES} minutes, and the ${formatMoney(TRIAL_PRICES[currency], currency)} fee is credited to your first package`,
   "24-hour cancellation policy",
   ...ONLINE_NOTES,
 ];
@@ -425,7 +382,19 @@ const inquiryNotes = ["Asking for pricing is free, and nothing is booked until y
 
 const INTERNATIONAL_PAYMENT = ["PayPal", "Stripe", "Wise"];
 
-const ukTracks = ukTracksFor(UK_GBP_PRICING);
+const internationalRegion = (id: InternationalTrackId, label: string, country: string, place: string, currency: HardCurrency, currencyName: string, inquiry: Inquiry): PricingRegion => ({
+  id,
+  label,
+  country,
+  heading: `Pricing for Students in ${place}`,
+  intro: `Live one-on-one lessons priced in ${currencyName} (${currency}). Choose single lessons or a 4-week plan.`,
+  currency,
+  tracks: [internationalTrack(id, label, currency)],
+  inquiry,
+  trial: trialFor(`${id}-trial`, currency, "your first package"),
+  paymentMethods: INTERNATIONAL_PAYMENT,
+  notes: internationalNotes(currency),
+});
 
 export const pricingRegions: PricingRegion[] = [
   {
@@ -434,7 +403,7 @@ export const pricingRegions: PricingRegion[] = [
     country: "Egypt",
     heading: "Special Pricing for Students in Cairo",
     intro:
-      "Rates depend on the kind of coaching you need: small group, Egyptian student and General English, Professional, or Business English. Packages are valid for 30 days from purchase.",
+      "Rates depend on the kind of coaching you need: Business English, Professional English, Small Group English, or Student English. Packages are valid for 30 days from purchase.",
     currency: "EGP",
     tracks: cairoTracks,
     inquiry: {
@@ -446,12 +415,12 @@ export const pricingRegions: PricingRegion[] = [
       country: "Egypt",
       currency: "EGP",
     },
-    trial: true,
-    paymentMethods: ["Vodafone Cash", "PayPal", "Stripe", "Wise (international students)"],
+    trial: trialLesson,
+    paymentMethods: ["Vodafone Cash", "InstaPay", "PayPal", "Stripe", "Wise (international students)"],
     notes: [
       "Packages are valid for 30 days from purchase",
       "Trial lessons are 30 minutes, not a full 60-minute lesson",
-      "The 100 EGP trial fee is credited toward your first 8- or 12-lesson package",
+      `The ${formatMoney(trialLesson.amount, "EGP")} trial fee is credited toward your first 8- or 12-lesson package`,
       "Small group rates are per student, for groups of 2–4",
       "24-hour cancellation policy",
       ...ONLINE_NOTES,
@@ -474,59 +443,21 @@ export const pricingRegions: PricingRegion[] = [
       country: "Egypt",
       currency: "EGP",
     },
-    trial: false,
+    trial: null,
     paymentMethods: [],
     notes: inquiryNotes,
   },
-  {
-    id: "ksa",
-    label: "Saudi Arabia",
-    country: "Saudi Arabia",
-    heading: "Pricing for Students in Saudi Arabia",
-    intro: "Live one-on-one lessons priced in Saudi riyals (SAR). Choose single lessons or a monthly plan.",
-    currency: "SAR",
-    tracks: ksaTracks,
-    inquiry: consultation("Saudi Arabia", "SAR"),
-    trial: false,
-    paymentMethods: INTERNATIONAL_PAYMENT,
-    notes: internationalNotes("SAR"),
-  },
-  {
-    id: "us",
-    label: "United States",
-    country: "United States",
-    heading: "Pricing for Students in the United States",
-    intro: "Live one-on-one lessons priced in US dollars (USD). Choose single lessons or a monthly plan.",
-    currency: "USD",
-    tracks: usTracks,
-    inquiry: consultation("United States", "USD"),
-    trial: false,
-    paymentMethods: INTERNATIONAL_PAYMENT,
-    notes: internationalNotes("USD"),
-  },
-  {
-    id: "uk",
-    label: "United Kingdom",
+  internationalRegion("ksa", "Saudi Arabia", "Saudi Arabia", "Saudi Arabia", "SAR", "Saudi riyals", consultation("Saudi Arabia", "SAR")),
+  internationalRegion("us", "United States", "United States", "the United States", "USD", "US dollars", consultation("United States", "USD")),
+  internationalRegion("uk", "United Kingdom", "United Kingdom", "the United Kingdom", "GBP", "British pounds", {
+    type: "uk-pricing",
+    heading: "Based in the UK?",
+    body: "Contact us for English lesson pricing in GBP.",
+    cta: "Request UK Pricing",
+    requestLabel: "UK pricing in GBP",
     country: "United Kingdom",
-    heading: "Pricing for Students in the United Kingdom",
-    intro: ukTracks.length
-      ? "Live one-on-one lessons priced in British pounds (GBP). Choose single lessons or a monthly plan."
-      : "We're finalising our UK prices in British pounds (GBP).",
-    currency: ukTracks.length ? "GBP" : null,
-    tracks: ukTracks,
-    inquiry: {
-      type: "uk-pricing",
-      heading: "Based in the UK?",
-      body: "Contact us for English lesson pricing in GBP.",
-      cta: "Request UK Pricing",
-      requestLabel: "UK pricing in GBP",
-      country: "United Kingdom",
-      currency: "GBP",
-    },
-    trial: false,
-    paymentMethods: ukTracks.length ? INTERNATIONAL_PAYMENT : [],
-    notes: ukTracks.length ? internationalNotes("GBP") : inquiryNotes,
-  },
+    currency: "GBP",
+  }),
   {
     id: "other",
     label: "Other countries",
@@ -536,7 +467,7 @@ export const pricingRegions: PricingRegion[] = [
     currency: null,
     tracks: [],
     inquiry: consultation("", ""),
-    trial: false,
+    trial: null,
     paymentMethods: [],
     notes: inquiryNotes,
   },
@@ -640,12 +571,20 @@ export const findPlan = (id: string): { track: Track; plan: Plan } | null => {
   return null;
 };
 
-export const isKnownPackageId = (id: string) =>
-  id === trialLesson.id || id === HELP_CHOOSING_PACKAGE || findPlan(id) !== null;
+/** The trial lesson with this package id, and the location that offers it. */
+export const findTrial = (id: string): { region: PricingRegion; trial: TrialLesson } | null => {
+  const region = pricingRegions.find((r) => r.trial?.id === id);
+  return region ? { region, trial: region.trial! } : null;
+};
+
+export const isTrialPackage = (id: string) => findTrial(id) !== null;
+
+export const isKnownPackageId = (id: string) => id === HELP_CHOOSING_PACKAGE || isTrialPackage(id) || findPlan(id) !== null;
 
 /** The location whose prices a package belongs to, or null for "help" and unknown ids. */
 export const regionOfPackage = (id: string): RegionId | null => {
-  if (id === trialLesson.id) return pricingRegions.find((r) => r.trial)?.id ?? null;
+  const trial = findTrial(id);
+  if (trial) return trial.region.id;
   return pricingRegions.find((r) => r.tracks.some((t) => t.plans.some((p) => p.id === id)))?.id ?? null;
 };
 
@@ -697,24 +636,27 @@ export type PriceSnapshot = {
 
 /** Builds the price record stored with an application. Returns null for "help". */
 export const buildPriceSnapshot = (packageId: string): PriceSnapshot | null => {
-  if (packageId === trialLesson.id) {
+  const foundTrial = findTrial(packageId);
+  if (foundTrial) {
+    const { trial, region } = foundTrial;
+    const egp = trial.currency === "EGP";
     return {
-      package_id: trialLesson.id,
+      package_id: trial.id,
       track_id: null,
       track_heading: null,
-      title: trialLesson.title,
+      title: trial.title,
       lessons: 1,
-      region_id: regionOfPackage(trialLesson.id),
-      currency: trialLesson.currency,
-      price: trialLesson.amount,
-      per_lesson_price: trialLesson.amount,
+      region_id: region.id,
+      currency: trial.currency,
+      price: trial.amount,
+      per_lesson_price: trial.amount,
       billing: "package",
       classes_per_week: null,
-      price_egp: trialLesson.amount,
-      per_lesson_egp: trialLesson.amount,
+      price_egp: egp ? trial.amount : null,
+      per_lesson_egp: egp ? trial.amount : null,
       per_student: false,
       validity_days: null,
-      duration_minutes: trialLesson.minutes,
+      duration_minutes: trial.minutes,
     };
   }
   const found = findPlan(packageId);
@@ -741,12 +683,6 @@ export const buildPriceSnapshot = (packageId: string): PriceSnapshot | null => {
   };
 };
 
-const formatNumber = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
-
-/** "1,500 EGP", "450 SAR", "$120 USD". Always shows the currency code. */
-export const formatMoney = (n: number, currency: Currency) =>
-  currency === "USD" ? `$${formatNumber(n)} USD` : `${formatNumber(n)} ${currency}`;
-
 /** The large figure on a pricing card ("1,500", "$120"); the currency code is shown beside it. */
 export const displayAmount = (plan: Plan) =>
   plan.currency === "USD" ? `$${formatNumber(plan.amount)}` : formatNumber(plan.amount);
@@ -764,7 +700,7 @@ export const describeSnapshot = (s: PriceSnapshot): string => {
   const money = p ? formatMoney(p.amount, p.currency) : "";
   if (!s.track_heading) return `${s.title}: ${money} for ${s.duration_minutes} minutes`;
   if (s.billing === "monthly") {
-    return `${s.track_heading}, Monthly plan, ${s.title}: ${money} per month (${s.lessons} classes per ${BILLING_PERIOD_WEEKS}-week billing period)`;
+    return `${s.track_heading}, ${s.title}: ${money} per ${BILLING_PERIOD_WEEKS} weeks`;
   }
   const per =
     s.lessons! > 1 && p?.perLesson != null ? ` (${formatMoney(p.perLesson, p.currency)} per lesson, valid ${s.validity_days} days)` : "";
@@ -772,5 +708,7 @@ export const describeSnapshot = (s: PriceSnapshot): string => {
 };
 
 /** The trial lesson price for a student's location ("100 EGP"), or null where no trial price is published. */
-export const trialPriceFor = (country: string, city: string): string | null =>
-  getRegion(regionForLocation(country, city)).trial ? formatMoney(trialLesson.amount, trialLesson.currency) : null;
+export const trialPriceFor = (country: string, city: string): string | null => {
+  const trial = getRegion(regionForLocation(country, city)).trial;
+  return trial ? formatMoney(trial.amount, trial.currency) : null;
+};

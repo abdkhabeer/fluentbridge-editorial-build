@@ -8,7 +8,6 @@ import {
   isRegionId,
   pricingRegions,
   regionForLocation,
-  trialLesson,
   type Inquiry,
   type Plan,
   type RegionId,
@@ -230,11 +229,11 @@ const PricingSection = () => {
               <div className="grid md:grid-cols-2 gap-6 mb-16">
                 <div className="p-8 bg-secondary border border-border hover:border-navy/20 transition-all duration-300">
                   <h4 className="font-serif text-lg font-normal text-foreground mb-2">
-                    {trialLesson.title}
+                    {region.trial.title}
                   </h4>
-                  <p className="text-label text-navy mb-4">{trialLesson.price}</p>
+                  <p className="text-label text-navy mb-4">{region.trial.price}</p>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    {trialLesson.description}
+                    {region.trial.description}
                   </p>
                 </div>
               </div>

@@ -141,7 +141,7 @@ describe("POST /api/applications", () => {
     const { res } = await submit(token(), validDraft({ ...ksa, selected_package: "ksa-monthly-3" }));
     expect(res.status).toBe(201);
     const a = await app(res.body.application_id);
-    expect(a!.selected_package_price_snapshot).toMatchObject({ currency: "SAR", price: 450, price_egp: null, billing: "monthly", classes_per_week: 3, lessons: 12 });
+    expect(a!.selected_package_price_snapshot).toMatchObject({ package_id: "ksa-monthly-3", currency: "SAR", price: 855, price_egp: null, billing: "monthly", classes_per_week: 3, lessons: 12 });
     expect(a!.review_flags).not.toContain("pricing_quote_needed");
   });
 

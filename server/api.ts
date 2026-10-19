@@ -11,7 +11,7 @@
 // Every read-modify-write uses ETag-conditional writes (Store.replace), so a
 // stale request can never overwrite newer data.
 
-import { buildPriceSnapshot, HELP_CHOOSING_PACKAGE, findPlan, trialLesson } from "../src/data/pricing";
+import { buildPriceSnapshot, HELP_CHOOSING_PACKAGE, findPlan, findTrial } from "../src/data/pricing";
 import {
   CEFR_LEVELS,
   PASSAGES,
@@ -177,7 +177,8 @@ const promptForTier = (tier: WritingTier | null) => (tier ? WRITING_PROMPTS[tier
 
 const packageTitle = (id: string) => {
   if (id === HELP_CHOOSING_PACKAGE) return "Needs help choosing";
-  if (id === trialLesson.id) return trialLesson.title;
+  const trial = findTrial(id);
+  if (trial) return `${trial.trial.title} (${trial.region.label})`;
   const found = findPlan(id);
   return found ? `${found.track.heading}: ${found.plan.title}` : id;
 };

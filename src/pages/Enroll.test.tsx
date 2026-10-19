@@ -120,14 +120,14 @@ describe("enrollment funnel", () => {
     renderAt("/enroll");
     toLessons("Saudi Arabia", "Riyadh", "+966 50 123 4567");
     expect(screen.getByText(/Pricing for Students in Saudi Arabia, from your location/)).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /^Single Lesson.*40 SAR/ })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /^3 Classes per Week.*Monthly plan.*450 SAR per month.*12 classes/ })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /^5 Classes per Week.*680 SAR per month.*20 classes/ })).toBeInTheDocument();
-    expect(screen.queryByRole("radio", { name: /EGP|USD/ })).toBeNull();
-    expect(screen.queryByRole("radio", { name: /^Trial lesson/ })).toBeNull();
+    expect(screen.getByRole("radio", { name: /^Single Lesson.*75 SAR/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^12 Classes per 4 Weeks.*855 SAR per 4 weeks.*71\.25 SAR per class/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^20 Classes per 4 Weeks.*1,350 SAR per 4 weeks.*67\.50 SAR per class/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^Trial lesson: 38 SAR \/ 30 minutes/ })).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /EGP|USD|GBP/ })).toBeNull();
     pick(/^Twice per week/);
-    pick(/^3 Classes per Week/);
-    expect(screen.getByText(/This monthly plan includes 3 classes per week/)).toBeInTheDocument();
+    pick(/^12 Classes per 4 Weeks/);
+    expect(screen.getByText(/This 4-week plan includes 3 classes per week/)).toBeInTheDocument();
   });
 
   it("shows students outside Cairo the pricing request instead of Cairo prices", () => {

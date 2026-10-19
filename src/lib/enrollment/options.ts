@@ -46,6 +46,7 @@ export const WEEKLY_FREQUENCIES = [
 
 export const PAYMENT_METHODS = [
   { value: "vodafone_cash", label: "Vodafone Cash", egyptOnly: true },
+  { value: "instapay", label: "InstaPay", egyptOnly: true },
   { value: "paypal", label: "PayPal", egyptOnly: false },
   { value: "card", label: "Stripe / card payment", egyptOnly: false },
   { value: "wise", label: "Wise", egyptOnly: false },
@@ -113,7 +114,7 @@ export const suggestedTrackForGoal = (goal: LearningGoal | "" | undefined): Trac
 
 export const isEgypt = (country: string) => country.trim().toLowerCase() === "egypt";
 
-/** Vodafone Cash is an Egyptian mobile wallet, so only offer it to students in Egypt or with a +20 number. */
+/** Vodafone Cash and InstaPay are Egyptian, so only offer them to students in Egypt or with a +20 number. */
 export const paymentMethodsFor = (country: string, whatsappE164: string | null) =>
   PAYMENT_METHODS.filter(
     (m) => !m.egyptOnly || isEgypt(country) || (whatsappE164?.startsWith("+20") ?? false),

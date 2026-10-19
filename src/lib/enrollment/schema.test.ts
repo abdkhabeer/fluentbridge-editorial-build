@@ -126,7 +126,7 @@ describe("location-based packages", () => {
   });
 
   it("compares weekly frequency with a monthly plan's schedule", () => {
-    expect(frequencyPackageNote("us-monthly-3", "2")).toMatch(/includes 3 classes per week \(12 per month\)/);
+    expect(frequencyPackageNote("us-monthly-3", "2")).toMatch(/includes 3 classes per week \(12 in 4 weeks\)/);
     expect(frequencyPackageNote("us-monthly-3", "3")).toBeNull();
     expect(frequencyPackageNote("ksa-monthly-5", "3")).toMatch(/5 classes per week/);
     expect(frequencyPackageNote("ksa-monthly-5", "4_plus")).toBeNull();

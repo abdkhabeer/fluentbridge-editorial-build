@@ -3,7 +3,7 @@
 // Relative imports only: this file is bundled into Netlify Functions.
 
 import { z } from "zod";
-import { isKnownPackageId, findPlan, trialLesson, HELP_CHOOSING_PACKAGE, packageLocationError } from "../../data/pricing";
+import { isKnownPackageId, isTrialPackage, findPlan, HELP_CHOOSING_PACKAGE, packageLocationError } from "../../data/pricing";
 import { COUNTRIES } from "./countries";
 import {
   DAYS,
@@ -130,7 +130,7 @@ export const goalsSchema = z
 
 /** Whether a package fits a lesson format (group packages are only for small groups). */
 export const packageFitsFormat = (packageId: string, format: string) => {
-  if (packageId === trialLesson.id || packageId === HELP_CHOOSING_PACKAGE) return true;
+  if (isTrialPackage(packageId) || packageId === HELP_CHOOSING_PACKAGE) return true;
   const found = findPlan(packageId);
   if (!found) return false;
   if (format === "small_group") return found.track.id === "group";
@@ -245,8 +245,9 @@ export const parseApplication = (input: unknown): ParseResult => {
   const location = packageLocationError(lessons.data.selected_package, country, p.city);
   if (location) return { ok: false, errors: { selected_package: location } };
 
-  if (payment.data.preferred_payment_method === "vodafone_cash" && !isEgypt(country) && !wa.e164.startsWith("+20")) {
-    return { ok: false, errors: { preferred_payment_method: "Vodafone Cash is only available for students in Egypt." } };
+  const method = PAYMENT_METHODS.find((m) => m.value === payment.data.preferred_payment_method);
+  if (method?.egyptOnly && !isEgypt(country) && !wa.e164.startsWith("+20")) {
+    return { ok: false, errors: { preferred_payment_method: `${method.label} is only available for students in Egypt.` } };
   }
 
   return {

@@ -24,7 +24,7 @@ export const frequencyPackageNote = (packageId: string, frequency: string): stri
   if (needed === null || perWeek === null || perWeek >= needed || (choice?.value === "4_plus" && needed >= 4)) return null;
   const plan = findPlan(packageId)!.plan;
   if (plan.billing === "monthly") {
-    return `This monthly plan includes ${needed} classes per week (${plan.lessons} per month), more than the ${choice!.label.toLowerCase()} you chose. Your instructor can help you choose a plan that fits your schedule.`;
+    return `This 4-week plan includes ${needed} classes per week (${plan.lessons} in 4 weeks), more than the ${choice!.label.toLowerCase()} you chose. Your instructor can help you choose a plan that fits your schedule.`;
   }
   return `A ${plan.lessons}-lesson package is valid for ${PACKAGE_VALIDITY_DAYS} days, which usually means about ${needed} lessons per week. Your instructor can help you choose a package that fits your schedule.`;
 };
