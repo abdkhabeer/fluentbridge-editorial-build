@@ -329,6 +329,18 @@ describe("privacy policy", () => {
     expect(screen.getByText(/stops working 30 days after you apply/)).toBeInTheDocument();
     expect(screen.getAllByText(/Netlify, Inc\./).length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Contact us about privacy" })).toBeInTheDocument();
+    // Approved wording, exactly.
+    expect(
+      screen.getByText(
+        "We count visits and steps on this site, for example that someone started or finished the placement test, so we can fix what is confusing. We do this ourselves, with no third-party analytics or advertising trackers. Each event stores only its name, a random session ID, a few non-personal details such as the step number, and the time. It does not store your name, email, phone number, IP address or browser details. The random ID is kept in your browser and replaced after 30 days. We delete these events after 12 months.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "We use Netlify to host the site and Resend to email us a notification when you complete the placement test. That notification includes the details you submitted.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/We don't use analytics/)).toBeNull();
     expect(screen.getByRole("link", { name: "+1 (571) 326-5041" })).toHaveAttribute("href", "https://wa.me/15713265041");
   });
 });

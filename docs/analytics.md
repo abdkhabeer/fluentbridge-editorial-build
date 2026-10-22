@@ -21,26 +21,26 @@ Code: `src/lib/analytics/events.ts` (shared rules), `src/lib/analytics/client.ts
 
 The admin Funnel view is at `/instructor/funnel`: distinct browsers per step and the conversion from the step above, over a UTC date range of up to 92 days.
 
-## Wording that needs approval
+## Approved wording (applied October 2026)
 
-### 1. Before deploying events (needed now)
+### Privacy page, "Technical information"
 
-The privacy page currently says "We don't use analytics, advertising, or tracking cookies." That stops being accurate once anonymous events are logged. Proposed replacement for that sentence in `src/pages/Privacy.tsx` ("Technical information"):
+Replaces "We don't use analytics, advertising, or tracking cookies." in `src/pages/Privacy.tsx`:
 
-> We count how many visitors reach each step of the enrollment form and placement test, for example how many start the test and how many finish it. To do this we store a random ID in your browser. These records don't include your name, contact details or IP address, aren't shared with anyone, and are deleted after 12 months. We don't use third-party analytics, advertising, or tracking cookies.
+> We count visits and steps on this site, for example that someone started or finished the placement test, so we can fix what is confusing. We do this ourselves, with no third-party analytics or advertising trackers. Each event stores only its name, a random session ID, a few non-personal details such as the step number, and the time. It does not store your name, email, phone number, IP address or browser details. The random ID is kept in your browser and replaced after 30 days. We delete these events after 12 months.
 
-This describes anonymous counting and doesn't change what applicants agree to, so I don't think it needs a consent version bump. Please confirm.
+Added to "Where it is stored and who can see it":
 
-### 2. Before turning on `FEATURE_LEAD_ATTRIBUTION`
+> We use Netlify to host the site and Resend to email us a notification when you complete the placement test. That notification includes the details you submitted.
 
-Add to "What we collect" under "When you apply and take the placement test":
+Known gaps between this wording and the code, reported to the owner and not reworded:
+- There is no page-visit event. Events are the eight funnel events listed above, so "We count visits" describes more than is recorded.
+- The alert email includes the name, WhatsApp number (in the Message 1 link), goal, preferred days and times, level range and source. It does not include the email address, city, alternative phone or written answer.
 
-> How you found us, if you visited in the last 30 days: the campaign tags in the link you first used (for example utm_source=instagram), the website that linked to us, and the first page you opened. We link this, and the random ID described below, to your application.
+Held back because the code does not behave this way: "If you arrive from a link with a source tag, such as a WhatsApp message, we keep that source in your browser for up to 30 days and, only if you agree on the enrollment form, attach it to your submission so we know how you found us." In the code, `captureAttribution` runs on every first visit, with or without a source tag. It stores the referring page and landing path as well as the tags, and keeps the first visit's values even if a later visit has a tag.
 
-Proposed consent checkbox text (`src/components/enroll/ReviewStep.tsx`), with `CONSENT_VERSION` bumped from `2026-10-enrollment-v2` to `2026-10-enrollment-v3` in `server/api.ts`:
+### Consent checkbox (`src/components/enroll/ReviewStep.tsx`), version `2026-10-enrollment-v3`
 
 > I agree that FluentBridges may use the information I have submitted, my placement test results, and how I found the website to evaluate my learning needs, email me my results and contact me about lessons, as described in the privacy policy.
 
-This text is prepared on the local branch `consent-v3-pending` and is not in the pull request. It also covers emailing students their results, which is not built yet.
-
-After approval: apply both texts, bump the version, set `FEATURE_LEAD_ATTRIBUTION=true` for Builds and Functions, and redeploy. Leads created earlier keep `consent_version` v2 and have no attribution.
+Leads created earlier keep `consent_version` v2 and have no attribution.

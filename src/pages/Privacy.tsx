@@ -80,7 +80,14 @@ const Privacy = () => {
           <p>
             <strong className="font-medium">Technical information:</strong> our hosting provider processes your IP address to deliver the
             site and to limit abusive traffic. To limit repeated applications, we keep a scrambled (hashed) value derived from your IP
-            address and the date for no more than two days. We don't use analytics, advertising, or tracking cookies.
+            address and the date for no more than two days.
+          </p>
+          <p>
+            We count visits and steps on this site, for example that someone started or finished the placement test, so we can fix what
+            is confusing. We do this ourselves, with no third-party analytics or advertising trackers. Each event stores only its name, a
+            random session ID, a few non-personal details such as the step number, and the time. It does not store your name, email,
+            phone number, IP address or browser details. The random ID is kept in your browser and replaced after 30 days. We delete
+            these events after 12 months.
           </p>
           <p>
             We never ask for card numbers, bank details, or passwords. Choosing a preferred payment method doesn't charge you or book a
@@ -116,6 +123,7 @@ const Privacy = () => {
                 website and provides its storage (Netlify Blobs) and server functions. Contact-form messages are stored by Netlify Forms.
                 Netlify is a US-based company, and your data may be stored and processed outside Egypt.
               </>,
+              "We use Netlify to host the site and Resend to email us a notification when you complete the placement test. That notification includes the details you submitted.",
               "Only your instructor can view applications and results, through a password-protected dashboard. Netlify processes the data only to provide its service.",
               "This site loads its fonts from Google Fonts, so Google receives your IP address when the page loads.",
               "If you choose to message us on WhatsApp, that conversation is handled by WhatsApp (Meta) under its own terms.",
