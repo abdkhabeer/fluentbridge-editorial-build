@@ -68,7 +68,7 @@ import { MAX_FUNNEL_DAYS, funnelReport, recordEvent } from "./analytics";
 import { parseAttribution, parseEvent, sourceOf, SESSION_ID, type Attribution } from "../src/lib/analytics/events";
 import { emailEnabled, newLeadAlert, sendAlertSafely, type EmailConfig } from "./email";
 
-export const CONSENT_VERSION = "2026-10-enrollment-v2";
+export const CONSENT_VERSION = "2026-10-enrollment-v3";
 export { ACCESS_TTL_DAYS, PROSPECT_RETENTION_DAYS };
 /** New applications accepted per client IP per UTC day (in addition to Netlify's per-minute rule). */
 export const APPLICATIONS_PER_IP_PER_DAY = 30;

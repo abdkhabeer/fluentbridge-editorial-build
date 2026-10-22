@@ -39,6 +39,8 @@ Add to "What we collect" under "When you apply and take the placement test":
 
 Proposed consent checkbox text (`src/components/enroll/ReviewStep.tsx`), with `CONSENT_VERSION` bumped from `2026-10-enrollment-v2` to `2026-10-enrollment-v3` in `server/api.ts`:
 
-> I agree that FluentBridges may use the information I have submitted, my placement test results, and how I found the website to evaluate my learning needs and contact me about lessons, as described in the privacy policy.
+> I agree that FluentBridges may use the information I have submitted, my placement test results, and how I found the website to evaluate my learning needs, email me my results and contact me about lessons, as described in the privacy policy.
+
+This text is prepared on the local branch `consent-v3-pending` and is not in the pull request. It also covers emailing students their results, which is not built yet.
 
 After approval: apply both texts, bump the version, set `FEATURE_LEAD_ATTRIBUTION=true` for Builds and Functions, and redeploy. Leads created earlier keep `consent_version` v2 and have no attribution.

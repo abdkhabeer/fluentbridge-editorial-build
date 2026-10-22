@@ -224,6 +224,10 @@ describe("enrollment funnel", () => {
     renderAt("/enroll");
     fillDetails();
     expect(screen.getByRole("link", { name: "privacy policy" })).toHaveAttribute("href", "/privacy");
+    // Approved v3 wording, exactly (2026-10-enrollment-v3).
+    expect(screen.getByRole("link", { name: "privacy policy" }).parentElement!.textContent).toBe(
+      "I agree that FluentBridges may use the information I have submitted, my placement test results, and how I found the website to evaluate my learning needs, email me my results and contact me about lessons, as described in the privacy policy.",
+    );
   });
 
   it("submits once, saves before the test, and survives a failed attempt with retry", async () => {
