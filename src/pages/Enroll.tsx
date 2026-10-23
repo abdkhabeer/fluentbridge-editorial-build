@@ -9,6 +9,7 @@ import { ApiError, newAccessToken, studentApi } from "@/lib/enrollment/client";
 import { paymentMethodsFor } from "@/lib/enrollment/options";
 import { checkPhone } from "@/lib/enrollment/phone";
 import { STEP_SCHEMAS, emptyDraft, validateStep, type EnrollmentDraft, type FieldErrors } from "@/lib/enrollment/schema";
+import { clearSiteStorage } from "@/lib/browserStorage";
 import { clearFunnel, initialFunnel, loadFunnel, saveFunnel, type SavedFunnel } from "@/lib/enrollment/storage";
 import { cn } from "@/lib/utils";
 import { GoalsStep, LessonsStep, PaymentScheduleStep, PersonalStep } from "@/components/enroll/DetailSteps";
@@ -70,7 +71,10 @@ const Enroll = () => {
     document.title = "Enroll | FluentBridges";
   }, []);
 
-  useEffect(() => saveFunnel(funnel), [funnel]);
+  // After "Remove my data from this device", nothing is written back.
+  useEffect(() => {
+    if (!removed) saveFunnel(funnel);
+  }, [funnel, removed]);
 
   useEffect(() => {
     if (!funnel.submitted && funnel.phase === "details") trackOnce("intake_started");
@@ -185,7 +189,7 @@ const Enroll = () => {
         revoked = false;
       }
     }
-    clearFunnel();
+    clearSiteStorage();
     setFunnel(initialFunnel());
     setAssessment(null);
     setResult(null);

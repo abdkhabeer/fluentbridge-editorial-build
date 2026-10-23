@@ -1,11 +1,12 @@
 // Browser side of first-party analytics. Everything here is fire-and-forget:
 // a failed or blocked request must never affect the page.
 
+import { LOCAL_STORAGE_KEYS, SESSION_STORAGE_KEYS } from "../browserStorage";
 import { ATTRIBUTION_TTL_DAYS, attributionFrom, type Attribution, type EventName, type EventProps } from "./events";
 
-const SESSION_KEY = "fb-analytics-session-v1";
-const ATTRIBUTION_KEY = "fb-attribution-v1";
-const ONCE_KEY = "fb-analytics-once-v1";
+const SESSION_KEY = LOCAL_STORAGE_KEYS.analyticsSession;
+const ATTRIBUTION_KEY = LOCAL_STORAGE_KEYS.attribution;
+const ONCE_KEY = SESSION_STORAGE_KEYS.analyticsOnce;
 const TTL_MS = ATTRIBUTION_TTL_DAYS * 24 * 60 * 60 * 1000;
 
 const read = <T>(storage: () => Storage, key: string): T | null => {
@@ -19,6 +20,13 @@ const read = <T>(storage: () => Storage, key: string): T | null => {
 const write = (storage: () => Storage, key: string, value: unknown) => {
   try {
     storage().setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage unavailable */
+  }
+};
+const remove = (storage: () => Storage, key: string) => {
+  try {
+    storage().removeItem(key);
   } catch {
     /* storage unavailable */
   }
@@ -39,9 +47,9 @@ export const analyticsSessionId = (now = new Date()): string => {
   return id;
 };
 
-/** Saves first-touch attribution on the first visit, and keeps it for 30 days. */
+/** Saves first-touch attribution on the first visit, and keeps it for 30 days. Expired attribution is deleted first. */
 export const captureAttribution = (now = new Date()) => {
-  if (fresh(read<Attribution>(local, ATTRIBUTION_KEY)?.captured_at, now)) return;
+  if (storedAttribution(now)) return;
   try {
     write(local, ATTRIBUTION_KEY, attributionFrom(new URL(window.location.href), document.referrer, now));
   } catch {
@@ -49,10 +57,12 @@ export const captureAttribution = (now = new Date()) => {
   }
 };
 
-/** First-touch attribution, or null when none was captured or it has expired. */
+/** First-touch attribution, or null when none was captured. Saved attribution older than 30 days is deleted, not just ignored. */
 export const storedAttribution = (now = new Date()): Attribution | null => {
   const a = read<Attribution>(local, ATTRIBUTION_KEY);
-  return a && fresh(a.captured_at, now) ? a : null;
+  if (a && fresh(a.captured_at, now)) return a;
+  if (a) remove(local, ATTRIBUTION_KEY);
+  return null;
 };
 
 export const track = (name: EventName, props: EventProps = {}) => {

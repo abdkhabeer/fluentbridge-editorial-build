@@ -305,6 +305,11 @@ describe("shared-device cleanup", () => {
     await api("POST", "/api/assessment/objective", { answers: Object.fromEntries(QUESTIONS.map((q) => [q.id, ANSWER_KEY[q.id].correct])) });
     await api("POST", "/api/assessment/complete", { text: "Hello." });
     localStorage.setItem("fb-enrollment-v1", JSON.stringify({ token, submitted: true, phase: "results" }));
+    // Everything else the site keeps in this browser.
+    localStorage.setItem("fb-pricing-location", "cairo");
+    localStorage.setItem("fb-analytics-session-v1", JSON.stringify({ id: "a".repeat(32), created_at: new Date().toISOString() }));
+    localStorage.setItem("fb-attribution-v1", JSON.stringify({ utm_source: "whatsapp", landing_path: "/", captured_at: new Date().toISOString() }));
+    sessionStorage.setItem("fb-analytics-once-v1", JSON.stringify(["intake_started:{}"]));
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
     renderAt("/enroll");
@@ -313,8 +318,10 @@ describe("shared-device cleanup", () => {
     expect(await screen.findByText("Your information has been removed from this device.")).toBeInTheDocument();
     expect(screen.getByText(/can no longer open your application/)).toBeInTheDocument();
 
-    const stored = localStorage.getItem("fb-enrollment-v1");
-    expect(stored === null || !stored.includes(token)).toBe(true);
+    // Every key is gone, and nothing is written back afterwards.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(Object.keys(localStorage)).toEqual([]);
+    expect(Object.keys(sessionStorage)).toEqual([]);
     expect((await api("GET", "/api/assessment")).status).toBe(404);
     // The instructor still has the application.
     expect(await ctx.store.list("applications/")).toHaveLength(1);

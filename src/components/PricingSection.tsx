@@ -14,8 +14,9 @@ import {
   type RegionId,
 } from "@/data/pricing";
 import { ENROLLMENT_STORAGE_KEY } from "@/lib/enrollment/storageKey";
+import { LOCAL_STORAGE_KEYS } from "@/lib/browserStorage";
 
-const LOCATION_KEY = "fb-pricing-location";
+const LOCATION_KEY = LOCAL_STORAGE_KEYS.pricingLocation;
 
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-2 focus-visible:ring-offset-background";
