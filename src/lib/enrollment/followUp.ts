@@ -2,7 +2,8 @@
 // same rendering can run in the browser and on the server (for email alerts).
 //
 // Each message is a list of sentences. A sentence that needs a variable we
-// don't have is dropped, so a message never contains literal {braces}.
+// don't have is dropped, so a message never contains literal {braces}. A list
+// of alternatives uses the first one whose variables are all present.
 
 import { CATEGORY_LABELS, type Category } from "../assessment/questions";
 import type { CategoryScore } from "./apiTypes";
@@ -15,11 +16,13 @@ export type FollowUpEvent = { type: FollowUpEventType; at: string };
 
 export const followUpEventType = (n: FollowUpMessage): FollowUpEventType => `follow_up_${n}_sent`;
 
-const TEMPLATES: Record<FollowUpMessage, string[]> = {
+type Sentence = string | string[];
+
+const TEMPLATES: Record<FollowUpMessage, Sentence[]> = {
   1: [
     "Hi {first_name}, it's Abdul from FluentBridges.",
     "I just looked at your placement test.",
-    "Your {strength} is solid, and the fastest gain is {top_gap}.",
+    ["Your {strength} is solid, and the fastest gain is {top_gap}.", "The fastest gain is {top_gap}."],
     "For {goal}, I'd like to hear you speak and then send you a written plan.",
     "Does {slot} work for a 30 minute trial?",
     "Reply YES and I'll send the link.",
@@ -195,17 +198,25 @@ export const followUpVars = (input: FollowUpInput, { now, trialRefundCopy }: Fol
   };
 };
 
-/** Fills a list of sentences, dropping any sentence that needs a missing variable. */
-export const renderSentences = (sentences: string[], vars: Vars): string =>
+const fill = (sentence: string, vars: Vars): string | null => {
+  let missing = false;
+  const out = sentence.replace(/\{(\w+)\}/g, (_, key: string) => {
+    const v = vars[key];
+    if (!v) missing = true;
+    return v ?? "";
+  });
+  return missing ? null : out.replace(/[{}]/g, "");
+};
+
+/** Fills a list of sentences, dropping any sentence that needs a missing variable. Alternatives fall back in order. */
+export const renderSentences = (sentences: Sentence[], vars: Vars): string =>
   sentences
     .flatMap((sentence) => {
-      let missing = false;
-      const out = sentence.replace(/\{(\w+)\}/g, (_, key: string) => {
-        const v = vars[key];
-        if (!v) missing = true;
-        return v ?? "";
-      });
-      return missing ? [] : [out.replace(/[{}]/g, "")];
+      for (const option of typeof sentence === "string" ? [sentence] : sentence) {
+        const out = fill(option, vars);
+        if (out !== null) return [out];
+      }
+      return [];
     })
     .join(" ");
 

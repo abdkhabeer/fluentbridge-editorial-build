@@ -65,9 +65,14 @@ describe("follow-up messages", () => {
     );
   });
 
-  it("leaves the strength sentence out of message 1 when no skill reaches 50% and 4 correct", () => {
+  it("keeps the top gap but drops the strength clause in message 1 when no skill reaches 50% and 4 correct", () => {
     const weak = { grammar: { correct: 4, total: 11, percent: 36 }, vocabulary: { correct: 2, total: 8, percent: 25 }, reading: { correct: 3, total: 6, percent: 50 }, usage: { correct: 1, total: 4, percent: 25 } };
-    expect(renderFollowUp(1, input({ category_scores: weak }), opts)).not.toContain("solid");
+    expect(renderFollowUp(1, input({ category_scores: weak }), opts)).toBe(
+      "Hi Sara, it's Abdul from FluentBridges. I just looked at your placement test. The fastest gain is the past simple. For job interviews and career development, I'd like to hear you speak and then send you a written plan. Does Tuesday at 17:00 work for a 30 minute trial? Reply YES and I'll send the link.",
+    );
+    // With neither a strength nor a gap, the sentence goes entirely.
+    expect(renderFollowUp(1, input({ category_scores: weak, improvement_areas: [] }), opts)).not.toMatch(/fastest gain|solid/);
+    expect(renderSentences([["Use {a}.", "Use {b}."], "End."], { b: "B" })).toBe("Use B. End.");
   });
 
   it("drops sentences whose variables are missing and never sends braces", () => {
