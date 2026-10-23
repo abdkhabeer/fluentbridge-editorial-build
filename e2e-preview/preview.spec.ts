@@ -76,39 +76,66 @@ const openResults = async (page: Page) => {
   await page.evaluate((t) => localStorage.setItem("fb-enrollment-v1", JSON.stringify({ token: t, submitted: true, phase: "results" })), token);
   await page.goto("/enroll");
   await expect(page.getByText("Estimated English Level")).toBeVisible();
-  return application.full_name.split(" ")[0];
+  return {
+    firstName: application.full_name.split(" ")[0],
+    // Values that must never appear in an outgoing link.
+    private: [application.full_name, application.full_name.split(" ").slice(1).join(" "), application.email, "1000000000"],
+  };
+};
+
+/** Fails if a link carries the lead's full name, email or phone number, in plain or URL-encoded form. */
+const expectNoLeadDetails = (href: string, values: string[]) => {
+  const decoded = decodeURIComponent(href);
+  for (const v of values) {
+    expect(decoded, `link contains "${v}"`).not.toContain(v);
+    expect(href, `link contains "${v}"`).not.toContain(encodeURIComponent(v));
+  }
 };
 
 test.describe("results page", () => {
-  test("shows the level range and both WhatsApp message buttons with the right text", async ({ page }, info) => {
-    const firstName = await openResults(page);
+  test("shows the level range, the trial button and the WhatsApp button with the right links", async ({ page }, info) => {
+    const lead = await openResults(page);
     await expect(page.getByText("B1 to B2")).toBeVisible();
     await expect(page.getByText("Your next target")).toBeVisible();
 
-    const trial = page.getByRole("link", { name: /^Book my trial/ });
+    const trial = page.getByRole("link", { name: /^Book my (trial|30 minute trial)/ });
     const ask = page.getByRole("link", { name: "Ask Abdul on WhatsApp" });
     await expect(trial).toBeVisible();
     await expect(ask).toBeVisible();
 
-    const trialUrl = new URL((await trial.getAttribute("href"))!);
-    const askUrl = new URL((await ask.getAttribute("href"))!);
-    // BOOKING_URL is unset on previews, so the trial button falls back to WhatsApp.
-    expect(trialUrl.hostname).toBe("wa.me");
-    expect(trialUrl.searchParams.get("text")).toBe("Hi Abdul, I'd like to book my 30 minute trial");
-    expect(askUrl.hostname).toBe("wa.me");
-    expect(askUrl.searchParams.get("text")).toBe(
-      `Hi Abdul, I'm ${firstName}. I just completed the FluentBridges placement test (level range: B1 to B2). I'd like to discuss my results and next steps.`,
-    );
-    for (const link of [trial, ask]) {
-      await expect(link).toHaveAttribute("target", "_blank");
-      expect(await link.getAttribute("href")).not.toMatch(/Preview%20Check%20|preview-check|\d{6,}%40/);
+    const trialHref = (await trial.getAttribute("href"))!;
+    const askHref = (await ask.getAttribute("href"))!;
+    const trialUrl = new URL(trialHref);
+    const askUrl = new URL(askHref);
+
+    // "Book my trial" goes to BOOKING_URL when it is set (any https page), otherwise to WhatsApp.
+    expect(trialUrl.protocol).toBe("https:");
+    if (trialUrl.hostname === "wa.me") {
+      expect(trialUrl.searchParams.get("text")).toBe("Hi Abdul, I'd like to book my 30 minute trial");
+    } else {
+      expect(trialUrl.origin).not.toBe(new URL(page.url()).origin);
+      info.annotations.push({ type: "booking", description: `BOOKING_URL is set (${trialUrl.hostname})` });
     }
 
-    // Clicking opens WhatsApp in a new tab (stubbed so nothing leaves the test).
-    await page.context().route("https://wa.me/**", (route) => route.fulfill({ status: 200, body: "stub" }));
-    for (const link of [trial, ask]) {
+    expect(askUrl.hostname).toBe("wa.me");
+    expect(askUrl.searchParams.get("text")).toBe(
+      `Hi Abdul, I'm ${lead.firstName}. I just completed the FluentBridges placement test (level range: B1 to B2). I'd like to discuss my results and next steps.`,
+    );
+
+    for (const [link, href] of [[trial, trialHref], [ask, askHref]] as const) {
+      await expect(link).toHaveAttribute("target", "_blank");
+      expectNoLeadDetails(href, lead.private);
+    }
+
+    // Each opens its own page in a new tab. External pages are stubbed so nothing leaves the test.
+    const siteOrigin = new URL(page.url()).origin;
+    await page.context().route(
+      (url) => url.origin !== siteOrigin,
+      (route) => route.fulfill({ status: 200, contentType: "text/plain", body: "stub" }),
+    );
+    for (const [link, url] of [[trial, trialUrl], [ask, askUrl]] as const) {
       const [popup] = await Promise.all([page.waitForEvent("popup"), link.click()]);
-      expect(new URL(popup.url()).hostname).toBe("wa.me");
+      expect(new URL(popup.url()).hostname).toBe(url.hostname);
       await popup.close();
     }
 
