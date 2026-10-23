@@ -39,7 +39,9 @@ Checked against the code (October 2026):
 - "Remove my data from this device" (results page only) clears every key in `src/lib/browserStorage.ts`: `fb-enrollment-v1`, `fb-pricing-location`, `fb-analytics-session-v1`, `fb-attribution-v1` and `fb-analytics-once-v1`.
 - Saved attribution older than 30 days is deleted when the page reads it.
 
-Held back, not applied: "When you first visit the site, we save in your browser where you came from ... You can clear it any time with "Remove my data from this device"." The button is only on the results page, after the placement test, so visitors who never apply, or stop partway, can't reach it. "Any time" is not true.
+Added next to the analytics paragraph (approved October 2026):
+
+> When you first visit the site, we save in your browser where you came from: the page that linked to us (when it is another website), the page you landed on, and any source tags in the link, such as utm_source and utm_campaign. We ignore this after 30 days. If you submit your details and tick the consent box, we send it with your submission, together with the random session ID, which lets us connect the steps you took on the site to your submission. You can clear it by clearing this site's data in your browser settings, or with "Remove my data from this device" on the results page.
 
 ### Consent checkbox (`src/components/enroll/ReviewStep.tsx`), version `2026-10-enrollment-v3`
 

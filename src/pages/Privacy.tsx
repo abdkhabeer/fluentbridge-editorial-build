@@ -90,6 +90,9 @@ const Privacy = () => {
             these events after 12 months.
           </p>
           <p>
+            {`When you first visit the site, we save in your browser where you came from: the page that linked to us (when it is another website), the page you landed on, and any source tags in the link, such as utm_source and utm_campaign. We ignore this after 30 days. If you submit your details and tick the consent box, we send it with your submission, together with the random session ID, which lets us connect the steps you took on the site to your submission. You can clear it by clearing this site's data in your browser settings, or with "Remove my data from this device" on the results page.`}
+          </p>
+          <p>
             We never ask for card numbers, bank details, or passwords. Choosing a preferred payment method doesn't charge you or book a
             lesson.
           </p>

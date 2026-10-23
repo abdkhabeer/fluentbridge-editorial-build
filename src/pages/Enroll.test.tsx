@@ -347,6 +347,11 @@ describe("privacy policy", () => {
         "We use Netlify to host the site and Resend to email us a notification when you complete the placement test. That notification includes your name, WhatsApp number, goal, preferred days and times, level and a suggested first reply, along with how you found the site if you agreed to share that.",
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "When you first visit the site, we save in your browser where you came from: the page that linked to us (when it is another website), the page you landed on, and any source tags in the link, such as utm_source and utm_campaign. We ignore this after 30 days. If you submit your details and tick the consent box, we send it with your submission, together with the random session ID, which lets us connect the steps you took on the site to your submission. You can clear it by clearing this site's data in your browser settings, or with \"Remove my data from this device\" on the results page.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/We don't use analytics/)).toBeNull();
     expect(screen.getByRole("link", { name: "+1 (571) 326-5041" })).toHaveAttribute("href", "https://wa.me/15713265041");
   });
