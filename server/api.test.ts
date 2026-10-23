@@ -6,6 +6,9 @@ import { emptyDraft, type EnrollmentDraft } from "../src/lib/enrollment/schema";
 import { ANSWER_KEY } from "./assessment/answerKey";
 import {
   APPLICATIONS_PER_IP_PER_DAY,
+  ATTRIBUTION_MIN_CONSENT_VERSION,
+  consentCoversAttribution,
+  consentVersionNumber,
   handleApiRequest,
   runRetention,
   type ApiContext,
@@ -636,17 +639,46 @@ describe("funnel events and attribution", () => {
 
   const attribution = () => ({ utm_source: "Instagram", utm_medium: "social", utm_campaign: null, utm_content: null, referrer: null, landing_path: "/", captured_at: now.toISOString() });
 
-  it("ignores attribution unless FEATURE_LEAD_ATTRIBUTION is on", async () => {
-    const res = await call("POST", "/api/applications", { application: validDraft(), access_token: token(), attribution: attribution(), analytics_session_id: sid });
-    const a = await app(res.body.application_id);
+  const apply = async () =>
+    app((await call("POST", "/api/applications", { application: validDraft(), access_token: token(), attribution: attribution(), analytics_session_id: sid })).body.application_id);
+
+  it("ignores attribution unless FEATURE_LEAD_ATTRIBUTION is on, even with v3 consent", async () => {
+    const a = await apply();
+    expect(a!.consent_version).toBe("2026-10-enrollment-v3");
     expect(a!.attribution).toBeUndefined();
     expect(a!.analytics_session_id).toBeUndefined();
   });
 
-  it("stores attribution and the session id on new leads when enabled, and shows the source", async () => {
+  it("stores no attribution with the flag on when the consent version is older or missing", async () => {
     ctx.config.leadAttribution = true;
-    const res = await call("POST", "/api/applications", { application: validDraft(), access_token: token(), attribution: attribution(), analytics_session_id: sid });
-    expect((await app(res.body.application_id))!).toMatchObject({ attribution: { utm_source: "Instagram", landing_path: "/" }, analytics_session_id: sid });
+    for (const version of ["2026-10-enrollment-v2", "2026-09-enrollment-v1", "", "enrollment-v9", "2026-10-enrollment-v3-draft"]) {
+      ctx.config.consentVersion = version;
+      const a = await apply();
+      expect(a!.consent_version, version).toBe(version);
+      expect(a!.attribution, version).toBeUndefined();
+      expect(a!.analytics_session_id, version).toBeUndefined();
+    }
+  });
+
+  it("orders consent versions by number, so later versions still allow attribution", () => {
+    expect(consentVersionNumber("2026-10-enrollment-v3")).toBe(3);
+    expect(consentVersionNumber("2027-01-enrollment-v12")).toBe(12);
+    expect(consentVersionNumber("2026-10-enrollment-v")).toBeNull();
+    expect(consentVersionNumber(undefined)).toBeNull();
+    expect(consentCoversAttribution(ATTRIBUTION_MIN_CONSENT_VERSION)).toBe(true);
+    expect(consentCoversAttribution("2027-03-enrollment-v4")).toBe(true);
+    // String comparison would get this wrong ("v10" < "v3").
+    expect(consentCoversAttribution("2027-06-enrollment-v10")).toBe(true);
+    expect(consentCoversAttribution("2026-10-enrollment-v2")).toBe(false);
+    expect(consentCoversAttribution(null)).toBe(false);
+  });
+
+  it("stores attribution and the session id on new leads with the flag on and v3 consent, and shows the source", async () => {
+    ctx.config.leadAttribution = true;
+    const a = await apply();
+    expect(a!).toMatchObject({ consent_version: "2026-10-enrollment-v3", attribution: { utm_source: "Instagram", landing_path: "/" }, analytics_session_id: sid });
+    ctx.config.consentVersion = "2027-06-enrollment-v10";
+    expect((await apply())!.attribution).toMatchObject({ utm_source: "Instagram" });
     const list = await call("GET", "/api/instructor/leads", undefined, await signIn());
     expect(list.body.leads[0].source).toBe("instagram");
   });

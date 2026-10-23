@@ -97,6 +97,8 @@ export type ApiConfig = {
    * (FEATURE_LEAD_ATTRIBUTION). Off until the consent wording that covers it is approved.
    */
   leadAttribution?: boolean;
+  /** Tests only: the consent version stamped on new applications. Never set from the environment; defaults to CONSENT_VERSION. */
+  consentVersion?: string;
   /** New-lead alert email through Resend (RESEND_API_KEY, ALERT_EMAIL_TO, EMAIL_FROM). Off when unset. */
   email?: EmailConfig;
 };
@@ -258,21 +260,42 @@ const enforceDailyCap = async (ctx: ApiContext) => {
 
 type LeadTracking = { attribution: Attribution | null; analytics_session_id: string | null };
 
+/** The first consent version whose wording covers "how I found the website". */
+export const ATTRIBUTION_MIN_CONSENT_VERSION = "2026-10-enrollment-v3";
+
+/** The number in a consent version such as "2026-10-enrollment-v3" (3), or null when it doesn't have that shape. */
+export const consentVersionNumber = (version: unknown): number | null => {
+  const m = typeof version === "string" ? /^\d{4}-\d{2}-enrollment-v(\d+)$/.exec(version) : null;
+  return m ? Number(m[1]) : null;
+};
+
+/** True when a consent version is ATTRIBUTION_MIN_CONSENT_VERSION or later, compared by version number. Missing or malformed is false. */
+export const consentCoversAttribution = (version: unknown) => {
+  const n = consentVersionNumber(version);
+  return n !== null && n >= consentVersionNumber(ATTRIBUTION_MIN_CONSENT_VERSION)!;
+};
+
+/** Attribution and the session id are kept only when the flag is on and the lead's consent covers them. */
+export const leadTrackingFor = (enabled: boolean, consentVersion: unknown, tracking: LeadTracking): LeadTracking | null =>
+  enabled && consentCoversAttribution(consentVersion) ? tracking : null;
+
 const buildApplication = (
   data: NormalizedApplication,
   index: TokenIndex,
   tokenHash: string,
   now: string,
   tracking: LeadTracking | null,
+  consentVersion = CONSENT_VERSION,
 ): ApplicationRecord => ({
   ...data,
-  ...(tracking ?? {}),
+  // Checked against the version stamped on this record, not just the flag.
+  ...((tracking && leadTrackingFor(true, consentVersion, tracking)) ?? {}),
   id: index.application_id,
   created_at: now,
   updated_at: now,
   selected_package_price_snapshot: buildPriceSnapshot(data.selected_package),
   consent_timestamp: now,
-  consent_version: CONSENT_VERSION,
+  consent_version: consentVersion,
   lead_status: "new",
   review_flags: reviewFlagsFor(data),
   instructor_notes: "",
@@ -323,13 +346,12 @@ const createApplication = async (req: Request, ctx: ApiContext) => {
   // Application first, so contact details survive even if the assessment write fails.
   const iso = now.toISOString();
   if (!(await ctx.store.get(keys.application(index.application_id)))) {
-    const tracking = ctx.config.leadAttribution
-      ? {
-          attribution: parseAttribution(body.attribution),
-          analytics_session_id: typeof body.analytics_session_id === "string" && SESSION_ID.test(body.analytics_session_id) ? body.analytics_session_id : null,
-        }
-      : null;
-    await ctx.store.create(keys.application(index.application_id), buildApplication(parsed.data, index, tokenHash, iso, tracking));
+    const consentVersion = ctx.config.consentVersion ?? CONSENT_VERSION;
+    const tracking = leadTrackingFor(!!ctx.config.leadAttribution, consentVersion, {
+      attribution: parseAttribution(body.attribution),
+      analytics_session_id: typeof body.analytics_session_id === "string" && SESSION_ID.test(body.analytics_session_id) ? body.analytics_session_id : null,
+    });
+    await ctx.store.create(keys.application(index.application_id), buildApplication(parsed.data, index, tokenHash, iso, tracking, consentVersion));
   }
   let assessment = await ctx.store.get<AssessmentRecord>(keys.assessment(index.assessment_id));
   if (!assessment) {
