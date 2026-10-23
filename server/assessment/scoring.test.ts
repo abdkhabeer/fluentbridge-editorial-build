@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { CEFR_BANDS, QUESTIONS, type OptionId } from "../../src/lib/assessment/questions";
 import { ANSWER_KEY } from "./answerKey";
 import {
+  SCORING_METHOD,
+  baseScoringMethod,
   buildFeedback,
   estimateLevel,
   overallScore,
@@ -130,6 +132,42 @@ describe("estimateLevel (via band evidence)", () => {
   });
 });
 
+describe("fb-objective-v2", () => {
+  const v1 = (perBand: number[]) => scoreObjective(answersWith(perBand), "fb-objective-v1").estimated_cefr_level;
+  const v2 = (perBand: number[]) => scoreObjective(answersWith(perBand)).estimated_cefr_level;
+
+  it("is the method for new submissions", () => {
+    expect(SCORING_METHOD).toBe("fb-objective-v2");
+    expect(scoreObjective({}).scoring_method).toBe("fb-objective-v2");
+    expect(scoreObjective({}, "fb-objective-v1").scoring_method).toBe("fb-objective-v1");
+  });
+
+  it("tolerates an unmet band below the estimate only when the estimate's band is 4 of 5 or better", () => {
+    // Solid to A1, weak A2 (2 of 5), 3 of 5 at B1 and B2: v1 places at B2, v2 at A1.
+    expect(v1([5, 2, 3, 3, 0, 0])).toBe("B2");
+    expect(v2([5, 2, 3, 3, 0, 0])).toBe("A1");
+    // 4 of 5 at the estimate still tolerates the weaker band.
+    expect(v1([5, 2, 5, 4, 1, 0])).toBe("B2");
+    expect(v2([5, 2, 5, 4, 1, 0])).toBe("B2");
+    // 4 of 5 at B1 carries B1, but B2 at 3 of 5 can't lean on the weak A2.
+    expect(v2([5, 2, 4, 3, 0, 0])).toBe("B1");
+  });
+
+  it("gives the same result as v1 when no band below the estimate is unmet", () => {
+    for (const perBand of [[5, 4, 3, 1, 0, 0], [5, 5, 4, 3, 1, 1], [3, 0, 0, 0, 0, 0], [5, 5, 0, 0, 0, 0], [5, 5, 5, 5, 5, 5], [0, 0, 0, 0, 0, 0]]) {
+      expect(v2(perBand), perBand.join()).toBe(v1(perBand));
+    }
+  });
+
+  it("reads stored methods, treating missing or unknown ones as v1", () => {
+    expect(baseScoringMethod("fb-objective-v2")).toBe("fb-objective-v2");
+    expect(baseScoringMethod("fb-objective-v2+instructor-writing")).toBe("fb-objective-v2");
+    expect(baseScoringMethod("fb-objective-v1+instructor-writing")).toBe("fb-objective-v1");
+    expect(baseScoringMethod(null)).toBe("fb-objective-v1");
+    expect(baseScoringMethod("fb-objective-v20")).toBe("fb-objective-v1");
+  });
+});
+
 describe("writing", () => {
   it("chooses a writing tier appropriate to the objective level", () => {
     expect(writingTierFor("Pre-A1")).toBe("foundation");
@@ -140,8 +178,12 @@ describe("writing", () => {
   });
 
   it("combines writing with objective score only when an instructor has scored it", () => {
-    expect(overallScore(70, null)).toEqual({ overall: 70, method: "fb-objective-v1" });
-    expect(overallScore(70, 50)).toEqual({ overall: 66, method: "fb-objective-v1+instructor-writing" });
+    expect(overallScore(70, null)).toEqual({ overall: 70, method: "fb-objective-v2" });
+    expect(overallScore(70, 50)).toEqual({ overall: 66, method: "fb-objective-v2+instructor-writing" });
+    // A record keeps the method it was scored with.
+    expect(overallScore(70, 50, "fb-objective-v1")).toEqual({ overall: 66, method: "fb-objective-v1+instructor-writing" });
+    expect(overallScore(70, 50, "fb-objective-v1+instructor-writing").method).toBe("fb-objective-v1+instructor-writing");
+    expect(overallScore(70, null, "fb-objective-v2+instructor-writing").method).toBe("fb-objective-v2");
     expect(rubricPercent({ grammar: 4, vocabulary: 4, structure: 2, coherence: 2, task: 3 })).toBe(75);
   });
 });

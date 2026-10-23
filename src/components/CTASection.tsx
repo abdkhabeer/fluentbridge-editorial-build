@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import AnimatedSection from "./AnimatedSection";
-import { formatMoney, trialLesson } from "@/data/pricing";
+import { track } from "@/lib/analytics/client";
 
 const CTASection = () => (
   <section className="section-padding bg-primary">
@@ -12,13 +12,14 @@ const CTASection = () => (
       </AnimatedSection>
       <AnimatedSection delay={0.15}>
         <p className="text-body-lg text-primary-foreground/75 mb-10 max-w-xl mx-auto">
-          Start with a 30-minute trial lesson, {formatMoney(trialLesson.amount, trialLesson.currency)} for students in Cairo and credited toward your first 8- or 12-lesson package if you enroll.
+          Start with a 30-minute trial lesson. The fee is credited toward your first package if you enroll.
         </p>
       </AnimatedSection>
       <AnimatedSection delay={0.25}>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <a
             href="#contact"
+            onClick={() => track("trial_cta_clicked", { location: "cta_section" })}
             className="inline-block text-label px-10 py-4 bg-warm-white text-charcoal hover:bg-sand transition-colors"
           >
             Book Your Trial Lesson

@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { handleApiRequest, type ApiContext } from "../../server/api";
 import { memoryStore } from "../../server/store";
@@ -23,7 +23,8 @@ beforeEach(() => {
   // Route the browser's fetch to the real API handlers with an in-memory store.
   vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
     fetchSpy(url, init);
-    if (failNext > 0) {
+    // Analytics events are fire-and-forget and must not use up simulated failures.
+    if (failNext > 0 && url !== "/api/events") {
       failNext--;
       throw new TypeError("Failed to fetch");
     }
@@ -120,14 +121,30 @@ describe("enrollment funnel", () => {
     renderAt("/enroll");
     toLessons("Saudi Arabia", "Riyadh", "+966 50 123 4567");
     expect(screen.getByText(/Pricing for Students in Saudi Arabia, from your location/)).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /^Single Lesson.*40 SAR/ })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /^3 Classes per Week.*Monthly plan.*450 SAR per month.*12 classes/ })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /^5 Classes per Week.*680 SAR per month.*20 classes/ })).toBeInTheDocument();
-    expect(screen.queryByRole("radio", { name: /EGP|USD/ })).toBeNull();
-    expect(screen.queryByRole("radio", { name: /^Trial lesson/ })).toBeNull();
+    expect(screen.getByRole("radio", { name: /^Single Lesson.*75 SAR/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^12 Classes per 4 Weeks.*855 SAR per 4 weeks.*71\.25 SAR per class/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^20 Classes per 4 Weeks.*1,350 SAR per 4 weeks.*67\.50 SAR per class/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^Trial lesson: 38 SAR \/ 30 minutes/ })).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /EGP|USD|GBP/ })).toBeNull();
     pick(/^Twice per week/);
-    pick(/^3 Classes per Week/);
-    expect(screen.getByText(/This monthly plan includes 3 classes per week/)).toBeInTheDocument();
+    pick(/^12 Classes per 4 Weeks/);
+    expect(screen.getByText(/This 4-week plan includes 3 classes per week/)).toBeInTheDocument();
+  });
+
+  it("suggests Professional English for general goals and shows the Student tier only after the student checkbox", () => {
+    renderAt("/enroll");
+    toLessons("Egypt", "Cairo", "01012345678");
+    expect(screen.queryByRole("heading", { name: "Student English" })).toBeNull();
+    const professional = screen.getByRole("heading", { name: "Professional English" }).parentElement!;
+    expect(professional).toHaveTextContent("Suggested for your goal");
+    fireEvent.click(screen.getByRole("checkbox", { name: /I'm a school or university student/ }));
+    expect(screen.getByText(/Student ID checked at your first lesson/)).toBeInTheDocument();
+    const student = screen.getByRole("heading", { name: "Student English" }).parentElement!;
+    expect(student).toHaveTextContent("Suggested for your goal");
+    fireEvent.click(within(student.parentElement!).getAllByRole("radio")[0]);
+    fireEvent.click(screen.getByRole("checkbox", { name: /I'm a school or university student/ }));
+    expect(screen.queryByRole("heading", { name: "Student English" })).toBeNull();
+    expect(screen.getAllByRole("radio", { checked: true }).filter((r) => (r as HTMLInputElement).name === "selected_package")).toHaveLength(0);
   });
 
   it("shows students outside Cairo the pricing request instead of Cairo prices", () => {
@@ -207,6 +224,10 @@ describe("enrollment funnel", () => {
     renderAt("/enroll");
     fillDetails();
     expect(screen.getByRole("link", { name: "privacy policy" })).toHaveAttribute("href", "/privacy");
+    // Approved v3 wording, exactly (2026-10-enrollment-v3).
+    expect(screen.getByRole("link", { name: "privacy policy" }).parentElement!.textContent).toBe(
+      "I agree that FluentBridges may use the information I have submitted, my placement test results, and how I found the website to evaluate my learning needs, email me my results and contact me about lessons, as described in the privacy policy.",
+    );
   });
 
   it("submits once, saves before the test, and survives a failed attempt with retry", async () => {
@@ -224,7 +245,7 @@ describe("enrollment funnel", () => {
     failNext = 1;
     fireEvent.click(screen.getByRole("button", { name: "Continue to English Placement Test" }));
     expect(await screen.findByText(/couldn't reach the server/)).toBeInTheDocument();
-    expect(ctx.store.data.size).toBe(0);
+    expect([...ctx.store.data.keys()].filter((k) => !k.startsWith("events/"))).toHaveLength(0);
 
     const retry = screen.getByRole("button", { name: "Try again" });
     fireEvent.click(retry);
@@ -278,12 +299,17 @@ describe("shared-device cleanup", () => {
       ...JSON.parse(JSON.stringify((await import("@/lib/enrollment/schema")).emptyDraft())),
       full_name: "Mona Adel", country: "Egypt", city: "Cairo", email: "mona@example.com", whatsapp_number: "01012345678",
       primary_learning_goal: "general", self_reported_level: "beginner", lesson_format: "one_on_one",
-      preferred_classes_per_week: "2", selected_package: "student-8", preferred_payment_method: "paypal", consent: true,
+      preferred_classes_per_week: "2", selected_package: "student-8", is_student: true, preferred_payment_method: "paypal", consent: true,
     };
     expect((await api("POST", "/api/applications", { application: draft, access_token: token })).status).toBe(201);
     await api("POST", "/api/assessment/objective", { answers: Object.fromEntries(QUESTIONS.map((q) => [q.id, ANSWER_KEY[q.id].correct])) });
     await api("POST", "/api/assessment/complete", { text: "Hello." });
     localStorage.setItem("fb-enrollment-v1", JSON.stringify({ token, submitted: true, phase: "results" }));
+    // Everything else the site keeps in this browser.
+    localStorage.setItem("fb-pricing-location", "cairo");
+    localStorage.setItem("fb-analytics-session-v1", JSON.stringify({ id: "a".repeat(32), created_at: new Date().toISOString() }));
+    localStorage.setItem("fb-attribution-v1", JSON.stringify({ utm_source: "whatsapp", landing_path: "/", captured_at: new Date().toISOString() }));
+    sessionStorage.setItem("fb-analytics-once-v1", JSON.stringify(["intake_started:{}"]));
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
     renderAt("/enroll");
@@ -292,8 +318,10 @@ describe("shared-device cleanup", () => {
     expect(await screen.findByText("Your information has been removed from this device.")).toBeInTheDocument();
     expect(screen.getByText(/can no longer open your application/)).toBeInTheDocument();
 
-    const stored = localStorage.getItem("fb-enrollment-v1");
-    expect(stored === null || !stored.includes(token)).toBe(true);
+    // Every key is gone, and nothing is written back afterwards.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(Object.keys(localStorage)).toEqual([]);
+    expect(Object.keys(sessionStorage)).toEqual([]);
     expect((await api("GET", "/api/assessment")).status).toBe(404);
     // The instructor still has the application.
     expect(await ctx.store.list("applications/")).toHaveLength(1);
@@ -308,6 +336,23 @@ describe("privacy policy", () => {
     expect(screen.getByText(/stops working 30 days after you apply/)).toBeInTheDocument();
     expect(screen.getAllByText(/Netlify, Inc\./).length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Contact us about privacy" })).toBeInTheDocument();
+    // Approved wording, exactly.
+    expect(
+      screen.getByText(
+        "We count actions on this site, such as starting or finishing the placement test or clicking a WhatsApp or trial button, so we can fix what is confusing. We do this ourselves, with no third-party analytics or advertising trackers. Each event stores only its name, a random session ID, a few non-personal details such as the step number or which button was clicked, and the time. It does not store your name, email, phone number, IP address or browser details. The random ID is kept in your browser and replaced after 30 days. We delete these events after 12 months.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "We use Netlify to host the site and Resend to email us a notification when you complete the placement test. That notification includes your name, WhatsApp number, goal, preferred days and times, level and a suggested first reply, along with how you found the site if you agreed to share that.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "When you first visit the site, we save in your browser where you came from: the page that linked to us (when it is another website), the page you landed on, and any source tags in the link, such as utm_source and utm_campaign. We ignore this after 30 days. If you submit your details and tick the consent box, we send it with your submission, together with the random session ID, which lets us connect the steps you took on the site to your submission. You can clear it by clearing this site's data in your browser settings, or with \"Remove my data from this device\" on the results page.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/We don't use analytics/)).toBeNull();
     expect(screen.getByRole("link", { name: "+1 (571) 326-5041" })).toHaveAttribute("href", "https://wa.me/15713265041");
   });
 });
@@ -319,8 +364,6 @@ describe("results page", () => {
     completed_at: "2026-10-18T10:00:00Z",
     estimated_cefr_level: "B1",
     confidence: "standard",
-    objective_score: { points: 17, max: 30, percent: 57 },
-    overall_score: 57,
     unanswered: 1,
     category_scores: {
       grammar: { correct: 6, total: 11, percent: 55 },
@@ -340,27 +383,74 @@ describe("results page", () => {
     selected_package: "business-8",
     selected_package_price_snapshot: null,
     preferred_payment_method: "vodafone_cash",
+    trial_price: "100 EGP",
   };
 
-  it("shows the estimated level, scores, measured vs recommended sections, and the disclaimer", () => {
+  it("names a strongest skill only at 50% or more with at least 4 correct, otherwise lists what went well", () => {
+    const weak = {
+      ...result,
+      category_scores: {
+        grammar: { correct: 4, total: 11, percent: 36 },
+        vocabulary: { correct: 3, total: 8, percent: 38 },
+        reading: { correct: 3, total: 6, percent: 50 },
+        usage: { correct: 3, total: 5, percent: 60 },
+      },
+    };
+    const { unmount } = render(<ResultsView result={weak} />);
+    expect(screen.queryByText(/Your strongest skill/)).toBeNull();
+    expect(screen.queryByText(/is your strongest skill/)).toBeNull();
+    expect(screen.getByRole("heading", { name: "What you did well" })).toBeInTheDocument();
+    expect(screen.getByText("You answered every question from A1 to A2 correctly.")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Strengths you showed" })).toBeNull();
+    expect(screen.getByText(/^This test can't measure speaking/)).toBeInTheDocument();
+    unmount();
+    render(<ResultsView result={result} />);
+    expect(screen.queryByRole("heading", { name: "What you did well" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Strengths you showed" })).toBeInTheDocument();
+  });
+
+  it("shows a level range and next target instead of exact scores, and leads with the strongest skill", () => {
     render(<ResultsView result={result} />);
     expect(screen.getByText("Estimated English Level")).toBeInTheDocument();
-    expect(screen.getByText("B1")).toBeInTheDocument();
-    expect(screen.getByText("57%")).toBeInTheDocument();
+    expect(screen.getByText("B1 to B2")).toBeInTheDocument();
+    expect(screen.getByText("Your next target")).toBeInTheDocument();
+    expect(screen.getByText("B2")).toBeInTheDocument();
+    expect(screen.queryByText(/%/)).toBeNull();
+    expect(screen.queryByText(/Overall score|Correct answers/)).toBeNull();
+    expect(screen.getByText("Your strongest skill: reading comprehension, 4 of 6")).toBeInTheDocument();
     expect(screen.getByText(/Your instructor may adjust your level after reviewing your writing and speaking ability/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "What we measured" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "What we recommend" })).toBeInTheDocument();
     expect(screen.getByText("Awaiting instructor review")).toBeInTheDocument();
-    expect(screen.getByText(/haven't been charged and no lessons are booked/)).toBeInTheDocument();
+    expect(screen.getByText("Nothing is charged and nothing is booked until you confirm.")).toBeInTheDocument();
+    expect(screen.queryByText(/refunded/)).toBeNull();
   });
 
-  it("links to WhatsApp with only the first name and level", () => {
+  it("shows no range at the top band, and a range from Pre-A1", () => {
+    const { unmount } = render(<ResultsView result={{ ...result, estimated_cefr_level: "C2" }} />);
+    expect(screen.getByText("C2")).toBeInTheDocument();
+    expect(screen.queryByText(/C2 to/)).toBeNull();
+    expect(screen.queryByText("Your next target")).toBeNull();
+    unmount();
+    render(<ResultsView result={{ ...result, estimated_cefr_level: "Pre-A1" }} />);
+    expect(screen.getByText("Pre-A1 to A1")).toBeInTheDocument();
+  });
+
+  it("explains the next step and offers the trial, then WhatsApp with only the first name and level range", () => {
     render(<ResultsView result={result} />);
-    const href = screen.getByRole("link", { name: /Discuss My Results on WhatsApp/ }).getAttribute("href")!;
+    expect(
+      screen.getByText(
+        "Your reading comprehension is your strongest skill. This test can't measure speaking, so the next step is a 30 minute trial. I'll hear you speak and send you a written plan for business English and workplace communication.",
+      ),
+    ).toBeInTheDocument();
+    // Without BOOKING_URL, booking falls back to WhatsApp.
+    const book = screen.getByRole("link", { name: "Book my trial: 100 EGP, credited to your package" }).getAttribute("href")!;
+    expect(decodeURIComponent(book.split("text=")[1])).toBe("Hi Abdul, I'd like to book my 30 minute trial");
+    const href = screen.getByRole("link", { name: /Ask Abdul on WhatsApp/ }).getAttribute("href")!;
     expect(href).toMatch(/^https:\/\/wa\.me\/15713265041\?text=/);
     const text = decodeURIComponent(href.split("text=")[1]);
     expect(text).toContain("Mona");
-    expect(text).toContain("B1");
+    expect(text).toContain("B1 to B2");
     expect(text).not.toContain("Adel");
     expect(screen.getByRole("link", { name: /Send a message instead/ })).toHaveAttribute("href", "/#contact");
   });

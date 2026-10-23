@@ -52,7 +52,7 @@ export const openStore = (
   throw new Error(selection.reason);
 };
 
-type NetlifyContext = { deploy?: { context?: string }; ip?: string };
+type NetlifyContext = { deploy?: { context?: string }; ip?: string; waitUntil?: (work: Promise<unknown>) => void };
 
 export const buildContext = (
   context: NetlifyContext | undefined,
@@ -74,10 +74,13 @@ export const buildContext = (
   return {
     store,
     clientIp: context?.ip,
+    waitUntil: context?.waitUntil?.bind(context),
     config: {
       instructorPassword: runtime.instructorPassword,
       sessionSecret: runtime.sessionSecret,
       secureCookies: true,
+      leadAttribution: process.env.FEATURE_LEAD_ATTRIBUTION === "true",
+      email: { apiKey: process.env.RESEND_API_KEY, to: process.env.ALERT_EMAIL_TO, from: process.env.EMAIL_FROM },
     },
   };
 };

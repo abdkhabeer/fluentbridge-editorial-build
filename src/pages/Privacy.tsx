@@ -28,7 +28,7 @@ const List = ({ items }: { items: ReactNode[] }) => (
 
 const Privacy = () => {
   useEffect(() => {
-    document.title = "Privacy Policy | Fluent Bridges";
+    document.title = "Privacy Policy | FluentBridges";
   }, []);
 
   return (
@@ -53,7 +53,7 @@ const Privacy = () => {
 
         <Section title="Who we are">
           <p>
-            Fluent Bridges is an online English tutoring service led by Abdul Khabeer, an English instructor based in Cairo, Egypt. This
+            FluentBridges is an online English tutoring service led by Abdul Khabeer, an English instructor based in Cairo, Egypt. This
             policy explains what information we collect through this website, why, where it is stored, and how you can ask us to correct
             or delete it.
           </p>
@@ -80,7 +80,17 @@ const Privacy = () => {
           <p>
             <strong className="font-medium">Technical information:</strong> our hosting provider processes your IP address to deliver the
             site and to limit abusive traffic. To limit repeated applications, we keep a scrambled (hashed) value derived from your IP
-            address and the date for no more than two days. We don't use analytics, advertising, or tracking cookies.
+            address and the date for no more than two days.
+          </p>
+          <p>
+            We count actions on this site, such as starting or finishing the placement test or clicking a WhatsApp or trial button, so we
+            can fix what is confusing. We do this ourselves, with no third-party analytics or advertising trackers. Each event stores only
+            its name, a random session ID, a few non-personal details such as the step number or which button was clicked, and the time.
+            It does not store your name, email, phone number, IP address or browser details. The random ID is kept in your browser and replaced after 30 days. We delete
+            these events after 12 months.
+          </p>
+          <p>
+            {`When you first visit the site, we save in your browser where you came from: the page that linked to us (when it is another website), the page you landed on, and any source tags in the link, such as utm_source and utm_campaign. We ignore this after 30 days. If you submit your details and tick the consent box, we send it with your submission, together with the random session ID, which lets us connect the steps you took on the site to your submission. You can clear it by clearing this site's data in your browser settings, or with "Remove my data from this device" on the results page.`}
           </p>
           <p>
             We never ask for card numbers, bank details, or passwords. Choosing a preferred payment method doesn't charge you or book a
@@ -116,6 +126,7 @@ const Privacy = () => {
                 website and provides its storage (Netlify Blobs) and server functions. Contact-form messages are stored by Netlify Forms.
                 Netlify is a US-based company, and your data may be stored and processed outside Egypt.
               </>,
+              "We use Netlify to host the site and Resend to email us a notification when you complete the placement test. That notification includes your name, WhatsApp number, goal, preferred days and times, level and a suggested first reply, along with how you found the site if you agreed to share that.",
               "Only your instructor can view applications and results, through a password-protected dashboard. Netlify processes the data only to provide its service.",
               "This site loads its fonts from Google Fonts, so Google receives your IP address when the page loads.",
               "If you choose to message us on WhatsApp, that conversation is handled by WhatsApp (Meta) under its own terms.",

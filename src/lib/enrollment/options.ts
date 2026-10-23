@@ -46,6 +46,7 @@ export const WEEKLY_FREQUENCIES = [
 
 export const PAYMENT_METHODS = [
   { value: "vodafone_cash", label: "Vodafone Cash", egyptOnly: true },
+  { value: "instapay", label: "InstaPay", egyptOnly: true },
   { value: "paypal", label: "PayPal", egyptOnly: false },
   { value: "card", label: "Stripe / card payment", egyptOnly: false },
   { value: "wise", label: "Wise", egyptOnly: false },
@@ -62,11 +63,13 @@ export const DAYS = [
   { value: "sun", label: "Sun" },
 ] as const;
 
+// `startsAt` is the time used when suggesting a lesson slot. Morning has no stated
+// start in its label, so 09:00 is an assumption.
 export const TIMES_OF_DAY = [
-  { value: "morning", label: "Morning (before 12:00)" },
-  { value: "afternoon", label: "Afternoon (12:00–17:00)" },
-  { value: "evening", label: "Evening (17:00–21:00)" },
-  { value: "late_evening", label: "Late evening (after 21:00)" },
+  { value: "morning", label: "Morning (before 12:00)", startsAt: "09:00" },
+  { value: "afternoon", label: "Afternoon (12:00–17:00)", startsAt: "12:00" },
+  { value: "evening", label: "Evening (17:00–21:00)", startsAt: "17:00" },
+  { value: "late_evening", label: "Late evening (after 21:00)", startsAt: "21:00" },
 ] as const;
 
 export const LEAD_STATUSES = [
@@ -96,22 +99,18 @@ export const values = <T extends readonly { value: string }[]>(list: T) =>
 export const labelFor = (list: readonly { value: string; label: string }[], value: string | null | undefined) =>
   list.find((o) => o.value === value)?.label ?? value ?? "";
 
-/** Track suggested for a goal. Used for a "suggested" hint only; students choose freely. */
-export const suggestedTrackForGoal = (goal: LearningGoal | "" | undefined): TrackId => {
-  switch (goal) {
-    case "business":
-      return "business";
-    case "career":
-    case "meetings":
-      return "professional";
-    default:
-      return "student";
-  }
+/**
+ * Track suggested for a goal. Used for a "suggested" hint only; students choose freely.
+ * Student English is suggested only to people who say they are a school or university student.
+ */
+export const suggestedTrackForGoal = (goal: LearningGoal | "" | undefined, isStudent = false): TrackId => {
+  if (isStudent) return "student";
+  return goal === "business" ? "business" : "professional";
 };
 
 export const isEgypt = (country: string) => country.trim().toLowerCase() === "egypt";
 
-/** Vodafone Cash is an Egyptian mobile wallet, so only offer it to students in Egypt or with a +20 number. */
+/** Vodafone Cash and InstaPay are Egyptian, so only offer them to students in Egypt or with a +20 number. */
 export const paymentMethodsFor = (country: string, whatsappE164: string | null) =>
   PAYMENT_METHODS.filter(
     (m) => !m.egyptOnly || isEgypt(country) || (whatsappE164?.startsWith("+20") ?? false),

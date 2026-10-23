@@ -5,24 +5,25 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import AnimatedSection from "./AnimatedSection";
-import { BILLING_PERIOD_WEEKS, REGION_WHERE, findPlan, formatMoney, pricingRegions, trialLesson, type Plan } from "@/data/pricing";
+import { REGION_WHERE, findPlan, formatMoney, pricingRegions, type Plan } from "@/data/pricing";
 
 // Prices in answers come from src/data/pricing.ts so they always match the pricing section.
 const money = (p: Plan) => formatMoney(p.amount, p.currency);
 const plan = (id: string) => findPlan(id)!.plan;
-const trial = formatMoney(trialLesson.amount, trialLesson.currency);
+const cairo = pricingRegions.find((r) => r.id === "cairo")!;
 
-const monthlyRegions = pricingRegions.filter((r) => r.tracks.some((t) => t.plans.some((p) => p.billing === "monthly")));
+const planRegions = pricingRegions.filter((r) => r.tracks.some((t) => t.plans.some((p) => p.billing === "monthly")));
 const quotedRegions = pricingRegions.filter((r) => r.tracks.length === 0);
 const joinOr = (parts: string[]) => (parts.length > 1 ? `${parts.slice(0, -1).join(", ")}, or ${parts[parts.length - 1]}` : parts[0] ?? "");
+const trialPrices = pricingRegions.filter((r) => r.trial).map((r) => `${formatMoney(r.trial!.amount, r.trial!.currency)} ${REGION_WHERE[r.id]}`);
 
 const pricingAnswer = [
-  `Prices depend on where you live. For students in Cairo, each option is priced separately: Small Group English is ${money(plan("group-single"))} per student per lesson, Egyptian Student and General English is ${money(plan("student-single"))} per lesson, Professional English is ${money(plan("professional-single"))} per lesson, and Business English is ${money(plan("business-single"))} per lesson. Every option offers 8- and 12-lesson packages at a lower effective rate, and a 30-minute trial lesson is ${trial}, credited toward your first 8- or 12-lesson package if you enroll.`,
-  ...monthlyRegions.map((r) => {
-    const [single, three, five] = r.tracks[0].plans;
-    return `For students ${REGION_WHERE[r.id]}, single lessons are ${money(single)}, and monthly plans are ${money(three)} (${three.classesPerWeek} classes per week) or ${money(five)} (${five.classesPerWeek} classes per week).`;
+  `Prices depend on where you live. For students in Cairo, each option is priced separately: Business English is ${money(plan("business-single"))} per lesson, Professional English is ${money(plan("professional-single"))} per lesson, Small Group English is ${money(plan("group-single"))} per student per lesson, and Student English, for school and university students, is ${money(plan("student-single"))} per lesson. Every option offers 8- and 12-lesson packages at a lower effective rate.`,
+  ...planRegions.map((r) => {
+    const [single, twelve, twenty] = r.tracks[0].plans;
+    return `For students ${REGION_WHERE[r.id]}, single lessons are ${money(single)}, and 4-week plans are ${money(twelve)} for ${twelve.lessons} classes or ${money(twenty)} for ${twenty.lessons} classes.`;
   }),
-  monthlyRegions.length ? `Monthly plans include ${3 * BILLING_PERIOD_WEEKS} or ${5 * BILLING_PERIOD_WEEKS} classes in each ${BILLING_PERIOD_WEEKS}-week billing period.` : "",
+  trialPrices.length ? `A 30-minute trial lesson is ${joinOr(trialPrices)}, credited toward your first package if you enroll.` : "",
   quotedRegions.length ? `Students ${joinOr(quotedRegions.map((r) => REGION_WHERE[r.id]))} can contact us for pricing in their currency.` : "",
 ]
   .filter(Boolean)
@@ -31,7 +32,7 @@ const pricingAnswer = [
 const faqs = [
   {
     q: "Who are lessons for?",
-    a: "Lessons are designed for students, adults, professionals, entrepreneurs, and anyone seeking to improve their English communication skills. There are four options: Small Group English for groups of 2–4 students, Egyptian Student and General English for everyday fluency, Professional English for career development, and Business English for advanced business communication.",
+    a: "Lessons are designed for students, adults, professionals, entrepreneurs, and anyone seeking to improve their English communication skills. In Cairo there are four options: Business English for advanced business communication, Professional English for career development, Small Group English for groups of 2–4 students, and Student English, a reduced rate for school and university students.",
   },
   {
     q: "How is pricing structured?",
@@ -55,7 +56,7 @@ const faqs = [
   },
   {
     q: "How do I book a trial lesson?",
-    a: `Simply fill out the contact form below or send a message via WhatsApp. I'll respond within 24 hours to schedule your trial. For students in Cairo, the trial is ${trial} for ${trialLesson.minutes} minutes, and that fee is credited toward your first 8- or 12-lesson package if you decide to enroll. Students elsewhere can ask about a trial lesson when they contact us.`,
+    a: `Simply fill out the contact form below or send a message via WhatsApp. I'll respond within 24 hours to schedule your trial. The trial is ${cairo.trial ? `${formatMoney(cairo.trial.amount, cairo.trial.currency)} for 30 minutes in Cairo` : "30 minutes"}, and the fee is credited toward your first package if you decide to enroll. See Pricing for the trial price where you live.`,
   },
 ];
 

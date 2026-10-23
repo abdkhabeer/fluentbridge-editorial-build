@@ -13,6 +13,9 @@ export default defineConfig(({ mode }) => ({
     },
   },
   plugins: [react(), devApiPlugin(loadEnv(mode, process.cwd(), ""))],
+  // Build-time settings exposed to the browser. None of these are secrets
+  // (see src/lib/featureFlags.ts). Never add a prefix that matches a secret.
+  envPrefix: ["VITE_", "FEATURE_", "BOOKING_URL"],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

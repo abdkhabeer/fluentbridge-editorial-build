@@ -19,7 +19,11 @@ Each stored assessment records `test_version` and `scoring_method`. If you chang
 
 There are 5 multiple-choice items per CEFR band (A1–C2). By category: grammar 11, vocabulary 8, reading 6, usage 5. Band tags are the author's judgement of each item's target difficulty.
 
-## Objective scoring (`fb-objective-v1`)
+## Objective scoring
+
+New submissions are scored with **`fb-objective-v2`**. Assessments scored earlier keep `fb-objective-v1`: their stored level is never recomputed, and scoring their writing later keeps the v1 label (`fb-objective-v1+instructor-writing`). A missing method is read as v1. The admin shows the method under "Scoring" and marks v1 records.
+
+### `fb-objective-v1` (until October 2026)
 
 1. Each item is worth 1 point. Unanswered items (including "I'm not sure") score 0.
 2. **Band met:** at least 60% of a band's items are correct (3 of 5).
@@ -31,6 +35,12 @@ There are 5 multiple-choice items per CEFR band (A1–C2). By category: grammar 
    If no band qualifies, the result is **Pre-A1**.
 4. **Confidence** is "limited" when fewer than 90% of items were answered. The student and the instructor both see this.
 
+### `fb-objective-v2` (current)
+
+The same as v1, except the "one unmet band below *L*" allowance applies only when band *L* itself is at least 80% correct (4 of 5). Without that, no band below *L* may be unmet.
+
+Why: under v1 a student who is solid to A2 and weak at B1 can guess 3 of 5 at B2 and be placed at B2. Guessing 3 of 5 on four-option items happens about 10% of the time; guessing 4 of 5 about 1.6%. In a simulation of that profile (200,000 runs), v1 placed 8.8% at B2 or above and v2 4.9%. Results with no unmet band below the estimate are identical under both. See `docs/proposals/quick-check.md`.
+
 Why these rules: rule (a) stops a few easy answers from producing an advanced level. Rules (b) and (c) stop lucky guesses on hard items from skipping weak lower bands, while one slip doesn't cap the result. Unanswered items can only lower the estimate, never raise it.
 
 Category scores (grammar, vocabulary, reading, usage) are reported separately and do not affect the level.
@@ -39,7 +49,7 @@ Category scores (grammar, vocabulary, reading, usage) are reported separately an
 
 - The prompt tier comes from the objective level: Pre-A1–A2 → *Introduce yourself* (40–100 words); B1–B2 → *Describe a challenge* (80–150); C1–C2 → *Give your opinion* (150–220).
 - Writing is **not scored automatically**. It is saved for the instructor, who scores it in `/instructor` on 5 criteria (grammar, vocabulary, sentence structure, coherence and clarity, task completion), each 0–4, giving a total of 20.
-- Once scored: **overall score = 80% objective + 20% writing** (`scoring_method = fb-objective-v1+instructor-writing`). Until then the overall score equals the objective score.
+- Once scored: **overall score = 80% objective + 20% writing** (`scoring_method = fb-objective-v2+instructor-writing`, or `v1+` for v1 records). Until then the overall score equals the objective score.
 - Writing never changes the objective CEFR estimate. The instructor records their own judgement in a separate `instructor_level` field.
 
 ## Feedback

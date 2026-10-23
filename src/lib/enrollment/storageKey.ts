@@ -1,3 +1,5 @@
 // localStorage key for funnel progress (see storage.ts). Kept in its own file so
 // the homepage can read it without bundling the enrollment schema.
-export const ENROLLMENT_STORAGE_KEY = "fb-enrollment-v1";
+import { LOCAL_STORAGE_KEYS } from "../browserStorage";
+
+export const ENROLLMENT_STORAGE_KEY = LOCAL_STORAGE_KEYS.enrollment;

@@ -10,7 +10,7 @@ const AboutSection = () => (
           <div className="w-full max-w-[300px] border border-border bg-background">
             <img
               src="/fluentbridges-instructor.jpg"
-              alt="Abdul Khabeer, Fluent Bridges English coach"
+              alt="Abdul Khabeer, FluentBridges English coach"
               width={259}
               height={452}
               loading="lazy"
@@ -32,7 +32,7 @@ const AboutSection = () => (
               focus on helping you make practical progress.
             </p>
             <p className="text-body-lg text-muted-foreground">
-              Fluent Bridges is led by Abdul Khabeer, a CELTA-certified English instructor based in Cairo who works with adult learners and professionals seeking practical communication skills.
+              FluentBridges is led by Abdul Khabeer, a CELTA-certified English instructor based in Cairo who works with adult learners and professionals seeking practical communication skills.
             </p>
           </div>
         </AnimatedSection>

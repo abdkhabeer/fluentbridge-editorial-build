@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { analyticsSessionId, storedAttribution, track, trackOnce } from "@/lib/analytics/client";
+import { featureFlags } from "@/lib/featureFlags";
 import { Link, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { findPlan, getRegion, isKnownPackageId, regionOfPackage } from "@/data/pricing";
@@ -7,6 +9,7 @@ import { ApiError, newAccessToken, studentApi } from "@/lib/enrollment/client";
 import { paymentMethodsFor } from "@/lib/enrollment/options";
 import { checkPhone } from "@/lib/enrollment/phone";
 import { STEP_SCHEMAS, emptyDraft, validateStep, type EnrollmentDraft, type FieldErrors } from "@/lib/enrollment/schema";
+import { clearSiteStorage } from "@/lib/browserStorage";
 import { clearFunnel, initialFunnel, loadFunnel, saveFunnel, type SavedFunnel } from "@/lib/enrollment/storage";
 import { cn } from "@/lib/utils";
 import { GoalsStep, LessonsStep, PaymentScheduleStep, PersonalStep } from "@/components/enroll/DetailSteps";
@@ -65,10 +68,18 @@ const Enroll = () => {
   const { draft, phase, step } = funnel;
 
   useEffect(() => {
-    document.title = "Enroll | Fluent Bridges";
+    document.title = "Enroll | FluentBridges";
   }, []);
 
-  useEffect(() => saveFunnel(funnel), [funnel]);
+  // After "Remove my data from this device", nothing is written back.
+  useEffect(() => {
+    if (!removed) saveFunnel(funnel);
+  }, [funnel, removed]);
+
+  useEffect(() => {
+    if (!funnel.submitted && funnel.phase === "details") trackOnce("intake_started");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Preselect a package from a pricing-card link (?package=student-8), then clean the URL.
   useEffect(() => {
@@ -178,7 +189,7 @@ const Enroll = () => {
         revoked = false;
       }
     }
-    clearFunnel();
+    clearSiteStorage();
     setFunnel(initialFunnel());
     setAssessment(null);
     setResult(null);
@@ -194,6 +205,7 @@ const Enroll = () => {
       focusFirstError();
       return;
     }
+    track("intake_step_completed", { step: step + 1 });
     if (step < STEPS.length - 1) goTo({ step: step + 1 });
     else goTo({ phase: "review" });
   };
@@ -221,7 +233,12 @@ const Enroll = () => {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await studentApi.createApplication(draft, token, honeypot);
+      await studentApi.createApplication(
+        draft,
+        token,
+        honeypot,
+        featureFlags.leadAttribution ? { attribution: storedAttribution(), analytics_session_id: analyticsSessionId() } : undefined,
+      );
       // Contact details are now saved on the server; remove them from this device.
       setFunnel((f) => ({ ...f, token, submitted: true, phase: "test", draft: emptyDraft() }));
       window.scrollTo({ top: 0 });

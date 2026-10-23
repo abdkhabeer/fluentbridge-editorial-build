@@ -3,7 +3,7 @@
 // Relative imports only: this file is bundled into Netlify Functions.
 
 import { z } from "zod";
-import { isKnownPackageId, findPlan, trialLesson, HELP_CHOOSING_PACKAGE, packageLocationError } from "../../data/pricing";
+import { isKnownPackageId, isTrialPackage, findPlan, HELP_CHOOSING_PACKAGE, packageLocationError } from "../../data/pricing";
 import { COUNTRIES } from "./countries";
 import {
   DAYS,
@@ -48,6 +48,8 @@ export type EnrollmentDraft = {
   group_status: string;
   preferred_classes_per_week: string;
   selected_package: string;
+  /** "I'm a school or university student". Unlocks the Student English tier. */
+  is_student: boolean;
   preferred_payment_method: string;
   preferred_days: string[];
   preferred_time_of_day: string[];
@@ -72,6 +74,7 @@ export const emptyDraft = (): EnrollmentDraft => ({
   group_status: "",
   preferred_classes_per_week: "",
   selected_package: "",
+  is_student: false,
   preferred_payment_method: "",
   preferred_days: [],
   preferred_time_of_day: [],
@@ -128,9 +131,14 @@ export const goalsSchema = z
     other_goal_text: [d.primary_learning_goal, ...d.additional_learning_goals].includes("other") ? d.other_goal_text : "",
   }));
 
+export const STUDENT_PACKAGE_ERROR = "Tick “I'm a school or university student” to choose a Student English package.";
+
+/** Student English packages are only for people who say they are a school or university student. */
+export const isStudentPackage = (packageId: string) => findPlan(packageId)?.track.id === "student";
+
 /** Whether a package fits a lesson format (group packages are only for small groups). */
 export const packageFitsFormat = (packageId: string, format: string) => {
-  if (packageId === trialLesson.id || packageId === HELP_CHOOSING_PACKAGE) return true;
+  if (isTrialPackage(packageId) || packageId === HELP_CHOOSING_PACKAGE) return true;
   const found = findPlan(packageId);
   if (!found) return false;
   if (format === "small_group") return found.track.id === "group";
@@ -144,8 +152,12 @@ export const lessonsSchema = z
     group_status: z.union([z.enum(values(GROUP_STATUSES)), z.literal("")]).catch(""),
     preferred_classes_per_week: z.enum(values(WEEKLY_FREQUENCIES), required("Please choose how often you would like lessons.")),
     selected_package: z.string().refine(isKnownPackageId, "Please choose a package, or select “I need help choosing”."),
+    is_student: z.boolean().catch(false),
   })
   .superRefine((d, ctx) => {
+    if (isStudentPackage(d.selected_package) && !d.is_student) {
+      ctx.addIssue({ code: "custom", path: ["selected_package"], message: STUDENT_PACKAGE_ERROR });
+    }
     if (d.lesson_format === "small_group" && !d.group_status) {
       ctx.addIssue({ code: "custom", path: ["group_status"], message: "Please tell us whether you already have a group." });
     }
@@ -211,6 +223,7 @@ export type NormalizedApplication = {
   group_status: "has_group" | "needs_group" | null;
   preferred_classes_per_week: z.infer<typeof lessonsSchema>["preferred_classes_per_week"];
   selected_package: string;
+  is_student: boolean;
   preferred_payment_method: z.infer<typeof paymentScheduleSchema>["preferred_payment_method"];
   preferred_days: z.infer<typeof paymentScheduleSchema>["preferred_days"];
   preferred_time_of_day: z.infer<typeof paymentScheduleSchema>["preferred_time_of_day"];
@@ -245,8 +258,9 @@ export const parseApplication = (input: unknown): ParseResult => {
   const location = packageLocationError(lessons.data.selected_package, country, p.city);
   if (location) return { ok: false, errors: { selected_package: location } };
 
-  if (payment.data.preferred_payment_method === "vodafone_cash" && !isEgypt(country) && !wa.e164.startsWith("+20")) {
-    return { ok: false, errors: { preferred_payment_method: "Vodafone Cash is only available for students in Egypt." } };
+  const method = PAYMENT_METHODS.find((m) => m.value === payment.data.preferred_payment_method);
+  if (method?.egyptOnly && !isEgypt(country) && !wa.e164.startsWith("+20")) {
+    return { ok: false, errors: { preferred_payment_method: `${method.label} is only available for students in Egypt.` } };
   }
 
   return {
@@ -267,6 +281,7 @@ export const parseApplication = (input: unknown): ParseResult => {
       group_status: lessons.data.lesson_format === "small_group" && lessons.data.group_status ? lessons.data.group_status : null,
       preferred_classes_per_week: lessons.data.preferred_classes_per_week,
       selected_package: lessons.data.selected_package,
+      is_student: lessons.data.is_student,
       preferred_payment_method: payment.data.preferred_payment_method,
       preferred_days: [...new Set(payment.data.preferred_days)],
       preferred_time_of_day: [...new Set(payment.data.preferred_time_of_day)],

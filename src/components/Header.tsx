@@ -1,3 +1,4 @@
+import { track } from "@/lib/analytics/client";
 import { useState, useEffect, useCallback } from "react";
 import { Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -66,7 +67,7 @@ const Header = () => {
           </Link>
           <a
             href="#contact"
-            onClick={(e) => { e.preventDefault(); scrollToHash("#contact"); }}
+            onClick={(e) => { e.preventDefault(); track("trial_cta_clicked", { location: "header" }); scrollToHash("#contact"); }}
             className={`whitespace-nowrap text-label px-6 py-2.5 border transition-all duration-300 hover:opacity-80 ${
               scrolled
                 ? "border-foreground text-foreground hover:bg-foreground hover:text-background"
@@ -110,7 +111,7 @@ const Header = () => {
               </Link>
               <a
                 href="#contact"
-                onClick={(e) => { e.preventDefault(); setMobileOpen(false); setTimeout(() => scrollToHash("#contact"), 300); }}
+                onClick={(e) => { e.preventDefault(); track("trial_cta_clicked", { location: "header" }); setMobileOpen(false); setTimeout(() => scrollToHash("#contact"), 300); }}
                 className="text-label px-6 py-3 border border-foreground text-foreground text-center hover:bg-foreground hover:text-background transition-colors"
               >
                 Book a Trial Lesson

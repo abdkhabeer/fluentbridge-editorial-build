@@ -4,18 +4,19 @@ import AnimatedSection from "./AnimatedSection";
 import {
   DEFAULT_REGION,
   displayAmount,
+  foundingRateLabel,
   getRegion,
   isRegionId,
   pricingRegions,
   regionForLocation,
-  trialLesson,
   type Inquiry,
   type Plan,
   type RegionId,
 } from "@/data/pricing";
 import { ENROLLMENT_STORAGE_KEY } from "@/lib/enrollment/storageKey";
+import { LOCAL_STORAGE_KEYS } from "@/lib/browserStorage";
 
-const LOCATION_KEY = "fb-pricing-location";
+const LOCATION_KEY = LOCAL_STORAGE_KEYS.pricingLocation;
 
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-2 focus-visible:ring-offset-background";
@@ -162,6 +163,7 @@ const LocationSelector = ({ value, onChange }: { value: RegionId; onChange: (id:
 const PricingSection = () => {
   const [regionId, setRegionId] = useState<RegionId>(initialRegion);
   const region = getRegion(regionId);
+  const foundingRate = foundingRateLabel(region.foundingRate);
 
   const choose = (id: RegionId) => {
     setRegionId(id);
@@ -215,11 +217,12 @@ const PricingSection = () => {
                 </h4>
                 <p className="text-sm text-muted-foreground max-w-xl">{track.blurb}</p>
               </div>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
+              <div className={`grid md:grid-cols-2 lg:grid-cols-3 gap-6 ${foundingRate ? "mb-6" : "mb-16"}`}>
                 {track.plans.map((plan) => (
                   <PlanCard key={plan.id} plan={plan} />
                 ))}
               </div>
+              {foundingRate && <p className="text-label text-navy mb-16">{foundingRate}</p>}
             </div>
           ))}
 
@@ -230,11 +233,11 @@ const PricingSection = () => {
               <div className="grid md:grid-cols-2 gap-6 mb-16">
                 <div className="p-8 bg-secondary border border-border hover:border-navy/20 transition-all duration-300">
                   <h4 className="font-serif text-lg font-normal text-foreground mb-2">
-                    {trialLesson.title}
+                    {region.trial.title}
                   </h4>
-                  <p className="text-label text-navy mb-4">{trialLesson.price}</p>
+                  <p className="text-label text-navy mb-4">{region.trial.price}</p>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    {trialLesson.description}
+                    {region.trial.description}
                   </p>
                 </div>
               </div>

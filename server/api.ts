@@ -11,7 +11,7 @@
 // Every read-modify-write uses ETag-conditional writes (Store.replace), so a
 // stale request can never overwrite newer data.
 
-import { buildPriceSnapshot, HELP_CHOOSING_PACKAGE, findPlan, trialLesson } from "../src/data/pricing";
+import { buildPriceSnapshot, HELP_CHOOSING_PACKAGE, findPlan, findTrial, trialPriceFor } from "../src/data/pricing";
 import {
   CEFR_LEVELS,
   PASSAGES,
@@ -33,6 +33,7 @@ import type {
   WritingStatus,
 } from "../src/lib/enrollment/apiTypes";
 import { reviewFlagsFor } from "../src/lib/enrollment/flags";
+import { FOLLOW_UP_MESSAGES, followUpEventType, type FollowUpMessage } from "../src/lib/enrollment/followUp";
 import { LEAD_STATUSES, type LeadStatus } from "../src/lib/enrollment/options";
 import { cleanText, parseApplication, parseContactCorrection, type NormalizedApplication } from "../src/lib/enrollment/schema";
 import { ANSWER_KEY } from "./assessment/answerKey";
@@ -63,8 +64,11 @@ import {
 } from "./auth";
 import { ACCESS_TTL_DAYS, PROSPECT_RETENTION_DAYS } from "../src/lib/enrollment/policy";
 import { keys, mapLimit, type Store } from "./store";
+import { MAX_FUNNEL_DAYS, funnelReport, recordEvent } from "./analytics";
+import { parseAttribution, parseEvent, sourceOf, SESSION_ID, type Attribution } from "../src/lib/analytics/events";
+import { emailEnabled, newLeadAlert, sendAlertSafely, type EmailConfig } from "./email";
 
-export const CONSENT_VERSION = "2026-10-enrollment-v2";
+export const CONSENT_VERSION = "2026-10-enrollment-v3";
 export { ACCESS_TTL_DAYS, PROSPECT_RETENTION_DAYS };
 /** New applications accepted per client IP per UTC day (in addition to Netlify's per-minute rule). */
 export const APPLICATIONS_PER_IP_PER_DAY = 30;
@@ -75,6 +79,7 @@ const LIMITS = {
   answers: 8 * KB,
   writing: 16 * KB,
   login: 1 * KB,
+  event: 1 * KB,
   instructor: 16 * KB,
   empty: 1 * KB,
 };
@@ -87,9 +92,24 @@ export type ApiConfig = {
   /** Set Secure on cookies (true everywhere except plain-http local dev). */
   secureCookies: boolean;
   now?: () => Date;
+  /**
+   * Store first-touch attribution and the analytics session id on new leads
+   * (FEATURE_LEAD_ATTRIBUTION). Off until the consent wording that covers it is approved.
+   */
+  leadAttribution?: boolean;
+  /** Tests only: the consent version stamped on new applications. Never set from the environment; defaults to CONSENT_VERSION. */
+  consentVersion?: string;
+  /** New-lead alert email through Resend (RESEND_API_KEY, ALERT_EMAIL_TO, EMAIL_FROM). Off when unset. */
+  email?: EmailConfig;
 };
 
-export type ApiContext = { store: Store; config: ApiConfig; clientIp?: string };
+export type ApiContext = {
+  store: Store;
+  config: ApiConfig;
+  clientIp?: string;
+  /** Keeps the function alive for work that finishes after the response (Netlify context.waitUntil). */
+  waitUntil?: (work: Promise<unknown>) => void;
+};
 
 // ── Records ──
 
@@ -176,7 +196,8 @@ const promptForTier = (tier: WritingTier | null) => (tier ? WRITING_PROMPTS[tier
 
 const packageTitle = (id: string) => {
   if (id === HELP_CHOOSING_PACKAGE) return "Needs help choosing";
-  if (id === trialLesson.id) return trialLesson.title;
+  const trial = findTrial(id);
+  if (trial) return `${trial.trial.title} (${trial.region.label})`;
   const found = findPlan(id);
   return found ? `${found.track.heading}: ${found.plan.title}` : id;
 };
@@ -237,14 +258,44 @@ const enforceDailyCap = async (ctx: ApiContext) => {
   });
 };
 
-const buildApplication = (data: NormalizedApplication, index: TokenIndex, tokenHash: string, now: string): ApplicationRecord => ({
+type LeadTracking = { attribution: Attribution | null; analytics_session_id: string | null };
+
+/** The first consent version whose wording covers "how I found the website". */
+export const ATTRIBUTION_MIN_CONSENT_VERSION = "2026-10-enrollment-v3";
+
+/** The number in a consent version such as "2026-10-enrollment-v3" (3), or null when it doesn't have that shape. */
+export const consentVersionNumber = (version: unknown): number | null => {
+  const m = typeof version === "string" ? /^\d{4}-\d{2}-enrollment-v(\d+)$/.exec(version) : null;
+  return m ? Number(m[1]) : null;
+};
+
+/** True when a consent version is ATTRIBUTION_MIN_CONSENT_VERSION or later, compared by version number. Missing or malformed is false. */
+export const consentCoversAttribution = (version: unknown) => {
+  const n = consentVersionNumber(version);
+  return n !== null && n >= consentVersionNumber(ATTRIBUTION_MIN_CONSENT_VERSION)!;
+};
+
+/** Attribution and the session id are kept only when the flag is on and the lead's consent covers them. */
+export const leadTrackingFor = (enabled: boolean, consentVersion: unknown, tracking: LeadTracking): LeadTracking | null =>
+  enabled && consentCoversAttribution(consentVersion) ? tracking : null;
+
+const buildApplication = (
+  data: NormalizedApplication,
+  index: TokenIndex,
+  tokenHash: string,
+  now: string,
+  tracking: LeadTracking | null,
+  consentVersion = CONSENT_VERSION,
+): ApplicationRecord => ({
   ...data,
+  // Checked against the version stamped on this record, not just the flag.
+  ...((tracking && leadTrackingFor(true, consentVersion, tracking)) ?? {}),
   id: index.application_id,
   created_at: now,
   updated_at: now,
   selected_package_price_snapshot: buildPriceSnapshot(data.selected_package),
   consent_timestamp: now,
-  consent_version: CONSENT_VERSION,
+  consent_version: consentVersion,
   lead_status: "new",
   review_flags: reviewFlagsFor(data),
   instructor_notes: "",
@@ -295,7 +346,12 @@ const createApplication = async (req: Request, ctx: ApiContext) => {
   // Application first, so contact details survive even if the assessment write fails.
   const iso = now.toISOString();
   if (!(await ctx.store.get(keys.application(index.application_id)))) {
-    await ctx.store.create(keys.application(index.application_id), buildApplication(parsed.data, index, tokenHash, iso));
+    const consentVersion = ctx.config.consentVersion ?? CONSENT_VERSION;
+    const tracking = leadTrackingFor(!!ctx.config.leadAttribution, consentVersion, {
+      attribution: parseAttribution(body.attribution),
+      analytics_session_id: typeof body.analytics_session_id === "string" && SESSION_ID.test(body.analytics_session_id) ? body.analytics_session_id : null,
+    });
+    await ctx.store.create(keys.application(index.application_id), buildApplication(parsed.data, index, tokenHash, iso, tracking, consentVersion));
   }
   let assessment = await ctx.store.get<AssessmentRecord>(keys.assessment(index.assessment_id));
   if (!assessment) {
@@ -347,9 +403,8 @@ export const studentResult = (application: ApplicationRecord, a: AssessmentRecor
     test_version: a.test_version,
     completed_at: a.completed_at,
     estimated_cefr_level: a.objective.estimated_cefr_level,
+    // Exact scores stay in the lead admin; students see a level range.
     confidence: a.objective.confidence,
-    objective_score: a.objective.objective_score,
-    overall_score: a.overall_score ?? a.objective.objective_score.percent,
     unanswered: a.objective.unanswered,
     category_scores: a.objective.category_scores,
     writing_status: a.writing.status,
@@ -364,6 +419,7 @@ export const studentResult = (application: ApplicationRecord, a: AssessmentRecor
     selected_package: application.selected_package,
     selected_package_price_snapshot: application.selected_package_price_snapshot,
     preferred_payment_method: application.preferred_payment_method,
+    trial_price: trialPriceFor(application.country, application.city),
   };
 };
 
@@ -450,7 +506,9 @@ const completeAssessment = async (req: Request, ctx: ApiContext) => {
   const skipped = body.skipped === true || !text;
   const now = nowIso(ctx);
 
+  let justCompleted = false;
   const { value: assessment } = await update<AssessmentRecord>(ctx.store, keys.assessment(index.assessment_id), (a) => {
+    justCompleted = false;
     if (a.status === "completed") return a;
     if (a.status !== "writing" || !a.objective) {
       throw new HttpError(409, "Please finish the multiple-choice questions first.", { status: a.status });
@@ -470,9 +528,10 @@ const completeAssessment = async (req: Request, ctx: ApiContext) => {
         "Your instructor will review your writing and give you feedback on it.",
       );
     }
-    const overall = overallScore(a.objective.objective_score.percent, null);
+    const overall = overallScore(a.objective.objective_score.percent, null, a.objective.scoring_method);
     Object.assign(a, feedback, { status: "completed" as const, completed_at: now, updated_at: now, overall_score: overall.overall });
     a.objective.scoring_method = overall.method;
+    justCompleted = true;
     return a;
   });
 
@@ -489,7 +548,25 @@ const completeAssessment = async (req: Request, ctx: ApiContext) => {
       })
     ).value;
   }
+  if (justCompleted) await alertNewLead(req, ctx, latestApplication, assessment);
   return json(200, { result: studentResult(latestApplication, assessment) });
+};
+
+/** Emails the instructor about a lead who just finished the test. Never throws. With waitUntil it runs after the response. */
+const alertNewLead = async (req: Request, ctx: ApiContext, application: ApplicationRecord, a: AssessmentRecord) => {
+  if (!emailEnabled(ctx.config.email) || !a.objective) return;
+  const email = newLeadAlert(
+    {
+      ...application,
+      category_scores: a.objective.category_scores,
+      improvement_areas: a.improvement_areas,
+      trial_price: trialPriceFor(application.country, application.city),
+    },
+    { level: a.objective.estimated_cefr_level, now: nowDate(ctx), trialRefundCopy: false, siteOrigin: new URL(req.url).origin },
+  );
+  const work = sendAlertSafely(ctx.config.email, email);
+  if (ctx.waitUntil) ctx.waitUntil(work);
+  else await work;
 };
 
 /** "Remove my data from this device": revokes the access token so it can no longer read the records. */
@@ -605,6 +682,9 @@ const listLeads = async (ctx: ApiContext) => {
       instructor_level: a?.instructor_level ?? null,
       overall_score: a?.status === "completed" ? a.overall_score : null,
       review_flags: application.review_flags,
+      assessment_completed_at: a?.status === "completed" ? a.completed_at : null,
+      follow_up_count: application.follow_up_events?.length ?? 0,
+      source: sourceOf(application.attribution),
     };
   });
   const leads = rows.filter((r): r is LeadSummary => r !== null).sort((x, y) => y.created_at.localeCompare(x.created_at));
@@ -742,7 +822,7 @@ const updateLead = async (req: Request, ctx: ApiContext, id: string) => {
       next.writing.status = "scored";
       next.writing.scored_at = now;
       next.writing_score = rubricPercent(rubric);
-      const overall = overallScore(next.objective.objective_score.percent, next.writing_score);
+      const overall = overallScore(next.objective.objective_score.percent, next.writing_score, next.objective.scoring_method);
       next.overall_score = overall.overall;
       next.objective.scoring_method = overall.method;
     }
@@ -750,6 +830,50 @@ const updateLead = async (req: Request, ctx: ApiContext, id: string) => {
     nextAssessment = await ctx.store.get<AssessmentRecord>(keys.assessment(assessment.value.id));
   }
   return json(200, leadDetail(nextApplication, nextAssessment));
+};
+
+// ── Funnel events ──
+
+const logEvent = async (req: Request, ctx: ApiContext) => {
+  const event = parseEvent(await readJson(req, LIMITS.event));
+  if (!event) return error(422, "Unknown event.");
+  await recordEvent(ctx.store, event, nowDate(ctx));
+  return json(202, { ok: true });
+};
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+const getFunnel = async (req: Request, ctx: ApiContext) => {
+  const url = new URL(req.url);
+  const today = utcDay(nowDate(ctx));
+  const from = url.searchParams.get("from") ?? utcDay(new Date(nowDate(ctx).getTime() - 29 * DAY_MS));
+  const to = url.searchParams.get("to") ?? today;
+  if (!DAY.test(from) || !DAY.test(to) || from > to) return error(422, "Use dates as YYYY-MM-DD, with from on or before to.");
+  if ((Date.parse(to) - Date.parse(from)) / DAY_MS >= MAX_FUNNEL_DAYS) return error(422, `Choose a range of ${MAX_FUNNEL_DAYS} days or less.`);
+  return json(200, await funnelReport(ctx.store, from, to));
+};
+
+/** Statuses that "Message 1 sent" must not move a lead back from. */
+const PAST_CONTACTED: LeadStatus[] = ["contacted", "trial_scheduled", "enrolled", "not_proceeding"];
+
+/**
+ * Records that the instructor opened WhatsApp follow-up message N for a lead.
+ * Message 1 also moves the lead to "Contacted" unless it is already there or further along.
+ */
+const recordFollowUp = async (req: Request, ctx: ApiContext, id: string) => {
+  const body = await readJson(req, LIMITS.empty);
+  const n = body.message as FollowUpMessage;
+  if (!FOLLOW_UP_MESSAGES.includes(n)) return error(422, "Unknown follow-up message.");
+  await loadLead(ctx, id);
+  const now = nowIso(ctx);
+  await update<ApplicationRecord>(ctx.store, keys.application(id), (app) => {
+    app.follow_up_events = [...(app.follow_up_events ?? []), { type: followUpEventType(n), at: now }].slice(-50);
+    if (n === 1 && !PAST_CONTACTED.includes(app.lead_status)) app.lead_status = "contacted";
+    app.updated_at = now;
+    return app;
+  });
+  const { application, assessment } = await loadLead(ctx, id);
+  return json(200, leadDetail(application, assessment));
 };
 
 /** Permanently deletes a lead: application, assessment, and access token. */
@@ -767,16 +891,17 @@ const deleteLead = async (ctx: ApiContext, id: string) => {
 
 // ── Retention (run daily by netlify/functions/retention-cleanup.mts) ──
 
-export type RetentionReport = { deletedLeads: number; expiredTokens: number; rateLimitKeys: number; keptEnrolled: number };
+export type RetentionReport = { deletedLeads: number; expiredTokens: number; rateLimitKeys: number; keptEnrolled: number; events: number };
 
 /**
  * - Deletes leads that are not "enrolled" and have had no activity for PROSPECT_RETENTION_DAYS.
  * - Enrolled students are never deleted automatically (reviewed manually; see docs).
  * - Deletes expired access tokens (records are kept; the token just stops existing).
  * - Deletes daily rate-limit counters older than yesterday.
+ * - Deletes anonymous funnel events older than PROSPECT_RETENTION_DAYS.
  */
 export const runRetention = async (store: Store, now: Date): Promise<RetentionReport> => {
-  const report: RetentionReport = { deletedLeads: 0, expiredTokens: 0, rateLimitKeys: 0, keptEnrolled: 0 };
+  const report: RetentionReport = { deletedLeads: 0, expiredTokens: 0, rateLimitKeys: 0, keptEnrolled: 0, events: 0 };
   const cutoff = now.getTime() - PROSPECT_RETENTION_DAYS * DAY_MS;
 
   const ids = (await store.list(keys.applicationsPrefix)).map((k) => k.slice(keys.applicationsPrefix.length));
@@ -812,6 +937,14 @@ export const runRetention = async (store: Store, now: Date): Promise<RetentionRe
       report.rateLimitKeys++;
     }
   }
+
+  const eventCutoff = utcDay(new Date(cutoff));
+  for (const key of await store.list(keys.eventsPrefix)) {
+    if ((key.split("/")[1] ?? "") < eventCutoff) {
+      await store.delete(key);
+      report.events++;
+    }
+  }
   return report;
 };
 
@@ -845,6 +978,16 @@ export const handleApiRequest = async (req: Request, ctx: ApiContext): Promise<R
       case "GET /api/instructor/leads":
         await requireInstructor(req, ctx);
         return await listLeads(ctx);
+      case "POST /api/events":
+        return await logEvent(req, ctx);
+      case "GET /api/instructor/funnel":
+        await requireInstructor(req, ctx);
+        return await getFunnel(req, ctx);
+    }
+    const followUp = /^POST \/api\/instructor\/leads\/([^/]+)\/follow-ups$/.exec(route);
+    if (followUp) {
+      await requireInstructor(req, ctx);
+      return await recordFollowUp(req, ctx, followUp[1]);
     }
     const lead = /^(GET|PATCH|DELETE) \/api\/instructor\/leads\/([^/]+)$/.exec(route);
     if (lead) {

@@ -11,10 +11,12 @@ const expectNoHorizontalScroll = async (page: Page) => {
 };
 
 test("student completes the enrollment funnel and the instructor can follow up", async ({ page }) => {
-  const name = `E2E Student ${test.info().project.name} ${Date.now()}`;
+  const name = `E2E Student ${test.info().project.name} ${Date.now()} ${test.info().workerIndex}${test.info().repeatEachIndex}`;
 
   await page.goto("/");
-  await page.getByRole("link", { name: "Take the free placement test" }).click();
+  await expect(page).toHaveTitle("English Coaching for Working Professionals | FluentBridges");
+  await expect(page.getByText("Free. About 25 to 30 minutes.")).toBeVisible();
+  await page.getByRole("link", { name: "Take the free level test" }).click();
   await expect(page).toHaveURL(/\/enroll$/);
   await expectNoHorizontalScroll(page);
   await shot(page, "1-details");
@@ -78,7 +80,8 @@ test("student completes the enrollment funnel and the instructor can follow up",
 
   // Results
   await expect(page.getByText("Estimated English Level")).toBeVisible();
-  await expect(page.getByRole("link", { name: /Discuss My Results on WhatsApp/ })).toHaveAttribute("href", /wa\.me\/15713265041/);
+  await expect(page.getByRole("link", { name: /Ask Abdul on WhatsApp/ })).toHaveAttribute("href", /wa\.me\/15713265041/);
+  await expect(page.getByRole("link", { name: "Book my trial: 100 EGP, credited to your package" })).toBeVisible();
   await expectNoHorizontalScroll(page);
   await shot(page, "8-results");
 
@@ -99,14 +102,35 @@ test("student completes the enrollment funnel and the instructor can follow up",
   await page.goto("/instructor");
   await page.getByLabel("Password").fill("e2e-instructor-password");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.getByRole("button", { name: new RegExp(name) }).click();
+  const row = page.getByRole("button", { name: new RegExp(name) });
+  await expect(row.getByText(/^waiting \d+ min$/)).toBeVisible();
+  await row.click();
   await expect(page.getByText("+20 10 1234 5678")).toBeVisible();
+
+  // Message 1 opens WhatsApp with the message filled in and marks the lead as Contacted.
+  const message1 = page.getByRole("link", { name: "Message 1", exact: true });
+  await expect(message1).toHaveAttribute("href", /^https:\/\/wa\.me\/201012345678\?text=Hi%20E2E%2C%20it's%20Abdul/);
+  await page.context().route("https://wa.me/**", (r) => r.fulfill({ status: 200, body: "whatsapp" }));
+  const popup = page.waitForEvent("popup");
+  await message1.click();
+  await (await popup).close();
+  await expect(page.getByText(/^Sent /)).toBeVisible();
+  await expect(page.getByLabel("Lead status")).toHaveValue("contacted");
   await expect(page.getByText(/I live in Cairo/)).toBeVisible();
   await page.getByLabel("Lead status").selectOption("contacted");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Saved.")).toBeVisible();
   await expectNoHorizontalScroll(page);
   await shot(page, "9-instructor");
+
+  // The Funnel view counts this visitor at every step they reached.
+  await page.getByRole("link", { name: "Funnel", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Funnel" })).toBeVisible();
+  for (const step of ["Started the intake form", "Completed intake step 4", "Answered 30 questions", "Completed the test", "Viewed results"]) {
+    await expect(page.getByRole("row", { name: new RegExp(`^${step} [1-9]`) })).toBeVisible();
+  }
+  await expectNoHorizontalScroll(page);
+  await page.getByRole("link", { name: "Leads", exact: true }).click();
 
   // Signing out revokes the session.
   await page.getByRole("button", { name: "Sign out" }).click();
@@ -149,26 +173,29 @@ test("location-based pricing: switching locations, mobile layout, and pricing re
   await page.keyboard.press("ArrowRight");
   await expect(page.getByRole("radio", { name: "Saudi Arabia" })).toBeChecked();
   await expect(page.getByRole("heading", { name: "Pricing for Students in Saudi Arabia" })).toBeVisible();
-  for (const price of ["40", "450", "680"]) await expect(pricing.getByText(price, { exact: true })).toBeVisible();
+  for (const price of ["75", "855", "1,350"]) await expect(pricing.getByText(price, { exact: true })).toBeVisible();
   await expect(pricing.getByText("2,200", { exact: true })).toHaveCount(0);
   await expectNoHorizontalScroll(page);
   await shot(page, "12-pricing-ksa");
 
-  await page.getByText("United States", { exact: true }).click();
-  for (const price of ["$10", "$120", "$180"]) await expect(pricing.getByText(price, { exact: true })).toBeVisible();
+  await pricing.getByText("United States", { exact: true }).click();
+  for (const price of ["$20", "$228", "$360"]) await expect(pricing.getByText(price, { exact: true })).toBeVisible();
   await expectNoHorizontalScroll(page);
 
-  await page.getByText("United Kingdom", { exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Based in the UK?" })).toBeVisible();
+  await pricing.getByText("United Kingdom", { exact: true }).click();
+  for (const price of ["15", "170", "265"]) await expect(pricing.getByText(price, { exact: true })).toBeVisible();
   await expectNoHorizontalScroll(page);
   await shot(page, "13-pricing-uk");
-  await page.getByRole("link", { name: "Request UK Pricing" }).click();
+
+  await pricing.getByText("Other countries", { exact: true }).click();
+  await expect(page.getByRole("heading", { name: /^Studying from another country\?/ })).toBeVisible();
+  await page.getByRole("link", { name: "Request a Consultation" }).click();
   await expect(page.getByLabel("Name", { exact: true })).toBeFocused();
-  await expect(page.getByLabel("Country")).toHaveValue("United Kingdom");
-  await expect(page.getByLabel("Preferred currency")).toHaveValue("GBP");
-  await expect(page.locator("#contact").getByText("UK pricing in GBP")).toBeVisible();
+  await expect(page.locator("#contact").getByText("Pricing consultation")).toBeVisible();
+  await page.getByLabel("Country").selectOption("Germany");
   await expectNoHorizontalScroll(page);
-  await shot(page, "14-contact-uk-request");
+  await shot(page, "14-contact-consultation");
+  await pricing.getByText("United Kingdom", { exact: true }).click();
 
   // The choice survives a reload.
   await page.goto("/");
@@ -177,7 +204,7 @@ test("location-based pricing: switching locations, mobile layout, and pricing re
 
 test("about section shows the instructor photo without overflow", async ({ page }) => {
   await page.goto("/#about");
-  const img = page.getByRole("img", { name: "Abdul Khabeer, Fluent Bridges English coach" });
+  const img = page.getByRole("img", { name: "Abdul Khabeer, FluentBridges English coach" });
   await img.scrollIntoViewIfNeeded();
   await expect(page.getByRole("heading", { name: "Meet Your English Coach" })).toBeVisible();
   await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth)).toBe(259);

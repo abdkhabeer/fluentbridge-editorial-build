@@ -1,1 +1,9 @@
-/*    /index.html   200
+# Known app routes are served by the SPA with 200. Anything else gets the SPA's
+# NotFound page with a real 404 status. Static files and functions are served
+# before these rules, so assets and /api/* are unaffected.
+/                /index.html   200
+/enroll          /index.html   200
+/privacy         /index.html   200
+/instructor      /index.html   200
+/instructor/*    /index.html   200
+/*               /index.html   404

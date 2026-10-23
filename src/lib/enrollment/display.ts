@@ -8,8 +8,11 @@ export const packageSummary = (id: string) => {
   return s ? describeSnapshot(s) : "I need help choosing";
 };
 
-/** WhatsApp link with a prefilled message. Contains only first name and level, never contact details. */
-export const whatsappLink = (firstName: string, level: string) => {
-  const text = `Hi! I'm ${firstName}. I just completed the Fluent Bridges placement test (estimated level: ${level}). I'd like to discuss my results and next steps.`;
-  return `https://wa.me/${CONTACT.whatsappDigits}?text=${encodeURIComponent(text)}`;
-};
+const whatsappTo = (text: string) => `https://wa.me/${CONTACT.whatsappDigits}?text=${encodeURIComponent(text)}`;
+
+/** WhatsApp link with a prefilled message. Contains only first name and level range, never contact details. */
+export const whatsappLink = (firstName: string, levelRange: string) =>
+  whatsappTo(`Hi Abdul, I'm ${firstName}. I just completed the FluentBridges placement test (level range: ${levelRange}). I'd like to discuss my results and next steps.`);
+
+/** Trial booking: the booking page when BOOKING_URL is set, otherwise WhatsApp with a prefilled request. */
+export const bookingLink = (bookingUrl: string | null) => bookingUrl ?? whatsappTo("Hi Abdul, I'd like to book my 30 minute trial");

@@ -11,6 +11,7 @@ The public policy is at `/privacy` (`src/pages/Privacy.tsx`). This file records 
 | Student access token | Stops working **30 days** after applying. The index is deleted by the daily job. | `ACCESS_TTL_DAYS`, `loadIndex()`, `runRetention()` |
 | Daily per-IP application counters (hashed) | Deleted after 2 days | `runRetention()` |
 | Contact-form messages (Netlify Forms) | Review and delete **at least every 12 months** | Manual, in the Netlify UI under Forms |
+| Anonymous funnel events (`events/`) | Deleted after **12 months** | `runRetention()`. See `docs/analytics.md` |
 | Browser storage | Contact details are cleared after submission and test progress after completion. "Remove my data from this device" clears everything and revokes the token. | `src/lib/enrollment/storage.ts`, `Enroll.tsx` |
 
 The periods live in `src/lib/enrollment/policy.ts`. Change them there and update the privacy page text if the wording changes.

@@ -1,17 +1,7 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
+# One group for every crawler. Bots that match a named group ignore "*", so
+# the earlier Googlebot and Bingbot groups never saw the /instructor rule.
 User-agent: *
 Allow: /
-
-User-agent: *
 Disallow: /instructor
+
+Sitemap: https://fluentbridges.com/sitemap.xml

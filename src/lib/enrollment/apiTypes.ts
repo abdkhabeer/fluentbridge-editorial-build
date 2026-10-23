@@ -5,6 +5,8 @@ import type { Category, CefrLevel, OptionId, RubricCriterion, WritingPrompt } fr
 import type { LeadStatus, LearningGoal, LessonFormat, PaymentMethod, WeeklyFrequency } from "./options";
 import type { ContactCorrection, NormalizedApplication } from "./schema";
 import type { ReviewFlag } from "./flags";
+import type { FollowUpEvent } from "./followUp";
+import type { Attribution } from "../analytics/events";
 
 export type AssessmentStatus = "not_started" | "in_progress" | "writing" | "completed";
 export type WritingStatus = "not_started" | "draft" | "submitted" | "skipped" | "scored";
@@ -19,8 +21,6 @@ export type StudentResult = {
   completed_at: string;
   estimated_cefr_level: CefrLevel;
   confidence: "standard" | "limited";
-  objective_score: { points: number; max: number; percent: number };
-  overall_score: number;
   unanswered: number;
   category_scores: Record<Category, CategoryScore>;
   writing_status: WritingStatus;
@@ -35,6 +35,8 @@ export type StudentResult = {
   selected_package: string;
   selected_package_price_snapshot: PriceSnapshot | null;
   preferred_payment_method: PaymentMethod;
+  /** Trial lesson price for the student's location ("10 USD"), or null where none is published. */
+  trial_price: string | null;
 };
 
 export type StudentAssessmentState = {
@@ -67,6 +69,10 @@ export type LeadSummary = {
   instructor_level: CefrLevel | null;
   overall_score: number | null;
   review_flags: ReviewFlag[];
+  assessment_completed_at: string | null;
+  follow_up_count: number;
+  /** utm_source, referring host, or "direct". Null when attribution isn't stored. */
+  source: string | null;
 };
 
 export type ResponseDetail = {
@@ -136,6 +142,11 @@ export type ApplicationRecordPublic = NormalizedApplication & {
   assessment_id: string;
   access_expires_at: string | null;
   access_revoked_at: string | null;
+  /** WhatsApp follow-ups sent from the lead admin. Missing on leads created before this field existed. */
+  follow_up_events?: FollowUpEvent[];
+  /** First-touch attribution (only when FEATURE_LEAD_ATTRIBUTION is on). */
+  attribution?: Attribution | null;
+  analytics_session_id?: string | null;
 };
 
 export type LeadUpdate = {
@@ -146,4 +157,11 @@ export type LeadUpdate = {
   instructor_notes?: string;
   instructor_level?: CefrLevel | null;
   writing_rubric?: Record<RubricCriterion, number>;
+};
+
+export type FunnelReport = {
+  from: string;
+  to: string;
+  total_events: number;
+  steps: { label: string; sessions: number; conversion: number | null }[];
 };

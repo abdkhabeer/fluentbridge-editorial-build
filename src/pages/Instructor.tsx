@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import { describeSnapshot, formatMoney, snapshotPrice } from "@/data/pricing";
+import { describeSnapshot, formatMoney, snapshotPrice, trialPriceFor } from "@/data/pricing";
 import {
   CATEGORY_LABELS,
   CEFR_LEVELS,
@@ -11,9 +11,20 @@ import {
   type Category,
   type RubricCriterion,
 } from "@/lib/assessment/questions";
-import type { LeadDetail, LeadSummary } from "@/lib/enrollment/apiTypes";
+import type { FunnelReport, LeadDetail, LeadSummary } from "@/lib/enrollment/apiTypes";
 import { ApiError, instructorApi } from "@/lib/enrollment/client";
 import { REVIEW_FLAG_LABELS } from "@/lib/enrollment/flags";
+import {
+  FOLLOW_UP_MESSAGES,
+  WAITING_ALERT_MINUTES,
+  followUpEventType,
+  renderFollowUp,
+  waitingLabel,
+  waitingMinutes,
+  whatsappUrl,
+  type FollowUpMessage,
+} from "@/lib/enrollment/followUp";
+import { featureFlags } from "@/lib/featureFlags";
 import {
   DAYS,
   GROUP_STATUSES,
@@ -32,13 +43,13 @@ import { cn } from "@/lib/utils";
 import { Notice, PrimaryButton, SecondaryButton, inputClass } from "@/components/enroll/fields";
 
 const fmtDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : "—";
+  iso ? new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : "Not set";
 
 const ASSESSMENT_LABELS = { not_started: "Not started", in_progress: "In progress", writing: "Writing task", completed: "Completed" };
 
 const useNoIndex = () =>
   useEffect(() => {
-    document.title = "Instructor | Fluent Bridges";
+    document.title = "Instructor | FluentBridges";
     const meta = document.createElement("meta");
     meta.name = "robots";
     meta.content = "noindex, nofollow";
@@ -102,17 +113,42 @@ const StatusBadge = ({ status }: { status: LeadStatus }) => (
   </span>
 );
 
+/** Re-renders every 30 seconds so "waiting N min" badges stay current. */
+const useNow = () => {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
+  return now;
+};
+
+const WaitingBadge = ({ minutes }: { minutes: number }) => (
+  <span
+    className={cn(
+      "inline-block whitespace-nowrap px-2 py-0.5 text-[0.65rem] uppercase tracking-widest",
+      minutes >= WAITING_ALERT_MINUTES ? "bg-amber-500 text-white" : "bg-amber-100 text-amber-900",
+    )}
+  >
+    {waitingLabel(minutes)}
+  </span>
+);
+
 const LeadList = ({ leads, onOpen }: { leads: LeadSummary[]; onOpen: (id: string) => void }) => {
+  const now = useNow();
   const [filter, setFilter] = useState<LeadStatus | "all">("all");
+  const [source, setSource] = useState("all");
   const [q, setQ] = useState("");
+  const sources = useMemo(() => [...new Set(leads.map((l) => l.source ?? "unknown"))].sort(), [leads]);
   const shown = useMemo(
     () =>
       leads.filter(
         (l) =>
           (filter === "all" || l.lead_status === filter) &&
+          (source === "all" || (l.source ?? "unknown") === source) &&
           (!q || `${l.full_name} ${l.email} ${l.whatsapp_number}`.toLowerCase().includes(q.toLowerCase())),
       ),
-    [leads, filter, q],
+    [leads, filter, source, q],
   );
 
   return (
@@ -127,6 +163,14 @@ const LeadList = ({ leads, onOpen }: { leads: LeadSummary[]; onOpen: (id: string
             </option>
           ))}
         </select>
+        <select className={cn(inputClass, "sm:w-48")} value={source} onChange={(e) => setSource(e.target.value)} aria-label="Filter by source">
+          <option value="all">All sources</option>
+          {sources.map((s) => (
+            <option key={s} value={s}>
+              {s === "unknown" ? "Not recorded" : s} ({leads.filter((l) => (l.source ?? "unknown") === s).length})
+            </option>
+          ))}
+        </select>
       </div>
 
       {shown.length === 0 ? (
@@ -138,7 +182,13 @@ const LeadList = ({ leads, onOpen }: { leads: LeadSummary[]; onOpen: (id: string
               <button type="button" onClick={() => onOpen(l.id)} className="w-full text-left p-4 sm:p-5 hover:bg-secondary transition-colors">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-serif text-xl text-foreground">{l.full_name}</span>
-                  <StatusBadge status={l.lead_status} />
+                  <span className="flex flex-wrap items-center gap-2">
+                    {(() => {
+                      const waiting = waitingMinutes(l.assessment_completed_at, l.follow_up_count, now);
+                      return waiting === null ? null : <WaitingBadge minutes={waiting} />;
+                    })()}
+                    <StatusBadge status={l.lead_status} />
+                  </span>
                 </div>
                 <div className="mt-1 grid gap-x-6 gap-y-1 text-xs text-muted-foreground sm:grid-cols-3">
                   <span>
@@ -152,6 +202,7 @@ const LeadList = ({ leads, onOpen }: { leads: LeadSummary[]; onOpen: (id: string
                     {l.estimated_cefr_level && ` · ${l.instructor_level ?? l.estimated_cefr_level}${l.instructor_level ? " (adjusted)" : ""} · ${l.overall_score}%`}
                   </span>
                   {l.review_flags.length > 0 && <span className="text-amber-800">{l.review_flags.length} item(s) to review</span>}
+                  {l.source && <span>Source: {l.source}</span>}
                 </div>
               </button>
             </li>
@@ -174,7 +225,7 @@ const Card = ({ title, children }: { title: string; children: ReactNode }) => (
 const Row = ({ label, children }: { label: string; children: ReactNode }) => (
   <div className="grid gap-1 py-1.5 sm:grid-cols-[10rem_1fr] text-sm">
     <dt className="text-muted-foreground">{label}</dt>
-    <dd className="text-foreground break-words">{children || "—"}</dd>
+    <dd className="text-foreground break-words">{children || "None"}</dd>
   </div>
 );
 
@@ -225,6 +276,49 @@ const ContactEditor = ({
         </SecondaryButton>
       </div>
     </form>
+  );
+};
+
+const ReplyOnWhatsApp = ({ lead, onSent }: { lead: LeadDetail; onSent: (n: FollowUpMessage) => void }) => {
+  const app = lead.application;
+  const input = {
+    ...app,
+    category_scores: lead.assessment.category_scores,
+    improvement_areas: lead.assessment.improvement_areas,
+    trial_price: trialPriceFor(app.country, app.city),
+  };
+  const options = { now: new Date(), trialRefundCopy: featureFlags.trialRefundCopy };
+  return (
+    <Card title="Reply on WhatsApp">
+      <p className="text-xs text-muted-foreground mb-4">
+        Opens WhatsApp in a new tab with the message filled in. Message 1 marks the lead as Contacted.
+      </p>
+      <ul className="space-y-4">
+        {FOLLOW_UP_MESSAGES.map((n) => {
+          const text = renderFollowUp(n, input, options);
+          const sent = (app.follow_up_events ?? []).filter((e) => e.type === followUpEventType(n));
+          return (
+            <li key={n} className="space-y-2">
+              <a
+                href={text ? whatsappUrl(app.whatsapp_number, text) : undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-disabled={!text}
+                onClick={() => text && onSent(n)}
+                className={cn(
+                  "inline-flex items-center justify-center text-label px-5 py-2.5 bg-foreground text-background hover:bg-navy transition-colors",
+                  !text && "pointer-events-none opacity-50",
+                )}
+              >
+                Message {n}
+              </a>
+              {sent.length > 0 && <span className="ml-3 text-xs text-muted-foreground">Sent {fmtDate(sent[sent.length - 1].at)}</span>}
+              <p className="text-sm text-muted-foreground leading-relaxed">{text || "Not enough information to write this message."}</p>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
   );
 };
 
@@ -284,6 +378,17 @@ const Detail = ({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
       setError(e instanceof Error ? e.message : "Save failed.");
     } finally {
       setSaving(null);
+    }
+  };
+
+  const recordFollowUp = async (n: FollowUpMessage) => {
+    try {
+      const d = await instructorApi.recordFollowUp(id, n);
+      setLead(d);
+      setStatus(d.application.lead_status);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? `WhatsApp opened, but the follow-up wasn't recorded: ${e.message}` : "The follow-up wasn't recorded.");
     }
   };
 
@@ -366,6 +471,18 @@ const Detail = ({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
             </Row>
             <Row label="Time zone">{app.timezone?.replace(/_/g, " ")}</Row>
             <Row label="Submitted">{fmtDate(app.created_at)}</Row>
+            {app.attribution && (
+              <>
+                <Row label="Source">
+                  {[app.attribution.utm_source, app.attribution.utm_medium, app.attribution.utm_campaign, app.attribution.utm_content]
+                    .map((v, i) => v && `${["source", "medium", "campaign", "content"][i]}: ${v}`)
+                    .filter(Boolean)
+                    .join(" · ") || "No UTM tags"}
+                </Row>
+                <Row label="Referrer">{app.attribution.referrer ?? "Direct"}</Row>
+                <Row label="Landing page">{`${app.attribution.landing_path} (${fmtDate(app.attribution.captured_at)})`}</Row>
+              </>
+            )}
             <Row label="Consent">{`${fmtDate(app.consent_timestamp)} (${app.consent_version})`}</Row>
             <Row label="Student access">
               {app.access_revoked_at
@@ -414,6 +531,8 @@ const Detail = ({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
           </div>
         </Card>
 
+        <ReplyOnWhatsApp lead={lead} onSent={recordFollowUp} />
+
         <Card title="Goals">
           <dl>
             <Row label="Main goal">{labelFor(LEARNING_GOALS, app.primary_learning_goal)}</Row>
@@ -430,9 +549,10 @@ const Detail = ({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
           <dl>
             <Row label="Format">{labelFor(LESSON_FORMATS, app.lesson_format)}</Row>
             {app.lesson_format === "small_group" && <Row label="Group">{labelFor(GROUP_STATUSES, app.group_status ?? "")}</Row>}
+            {app.is_student && <Row label="Student">Yes, check student ID at the first lesson</Row>}
             <Row label="Per week">{labelFor(WEEKLY_FREQUENCIES, app.preferred_classes_per_week)}</Row>
             <Row label="Package">{snap ? describeSnapshot(snap) : "Needs help choosing"}</Row>
-            <Row label="Quoted price">{quoted && `${formatMoney(quoted.amount, quoted.currency)}${snap?.billing === "monthly" ? " per month" : ""} (snapshot at submission)`}</Row>
+            <Row label="Quoted price">{quoted && `${formatMoney(quoted.amount, quoted.currency)}${snap?.billing === "monthly" ? " per 4 weeks" : ""} (snapshot at submission)`}</Row>
             <Row label="Payment">{labelFor(PAYMENT_METHODS, app.preferred_payment_method)}</Row>
             <Row label="Days">{app.preferred_days.map((d) => labelFor(DAYS, d)).join(", ")}</Row>
             <Row label="Time of day">{app.preferred_time_of_day.map((t) => labelFor(TIMES_OF_DAY, t)).join(", ")}</Row>
@@ -444,7 +564,11 @@ const Detail = ({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
         <dl className="mb-6">
           <Row label="Status">{ASSESSMENT_LABELS[a.status]}</Row>
           <Row label="Started / completed">{`${fmtDate(a.started_at)} / ${fmtDate(a.completed_at)}`}</Row>
-          <Row label="Test version">{`${a.test_version}${a.scoring_method ? ` · ${a.scoring_method}` : ""}`}</Row>
+          <Row label="Test version">{a.test_version}</Row>
+          <Row label="Scoring">
+            {a.scoring_method &&
+              `${a.scoring_method}${a.scoring_method.startsWith("fb-objective-v1") ? " (earlier rule, level kept as scored)" : ""}`}
+          </Row>
           <Row label="Estimated level">
             {a.estimated_cefr_level && `${a.estimated_cefr_level} (objective)${a.confidence === "limited" ? ", limited evidence" : ""}`}
           </Row>
@@ -637,9 +761,92 @@ const Detail = ({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
   );
 };
 
+// ── Funnel ──
+
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+
+const Funnel = () => {
+  const [to, setTo] = useState(() => isoDay(new Date()));
+  const [from, setFrom] = useState(() => isoDay(new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)));
+  const [report, setReport] = useState<FunnelReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setReport(await instructorApi.funnel(from, to));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't load the funnel.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      <h1 className="font-serif text-3xl text-foreground">Funnel</h1>
+      <p className="text-sm text-muted-foreground">
+        Anonymous visitors (one per browser) reaching each step, by UTC date. Conversion is from the step above.
+      </p>
+      <form
+        className="flex flex-col gap-3 sm:flex-row sm:items-end"
+        onSubmit={(e) => {
+          e.preventDefault();
+          load();
+        }}
+      >
+        <label className="text-xs uppercase tracking-wider text-muted-foreground">
+          From
+          <input type="date" className={cn(inputClass, "mt-1")} value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
+        </label>
+        <label className="text-xs uppercase tracking-wider text-muted-foreground">
+          To
+          <input type="date" className={cn(inputClass, "mt-1")} value={to} min={from} onChange={(e) => setTo(e.target.value)} />
+        </label>
+        <PrimaryButton type="submit" disabled={busy}>
+          {busy ? "Loading…" : "Show"}
+        </PrimaryButton>
+      </form>
+      {error && <Notice tone="error">{error}</Notice>}
+      {report && (
+        <div className="overflow-x-auto border border-border bg-background">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
+                <th className="p-3 font-normal">Step</th>
+                <th className="p-3 font-normal text-right">Visitors</th>
+                <th className="p-3 font-normal text-right">Conversion</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.steps.map((s) => (
+                <tr key={s.label} className="border-b border-border last:border-0">
+                  <td className="p-3 text-foreground">{s.label}</td>
+                  <td className="p-3 text-right tabular-nums">{s.sessions}</td>
+                  <td className="p-3 text-right tabular-nums text-muted-foreground">{s.conversion === null ? "" : `${s.conversion}%`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="p-3 text-xs text-muted-foreground border-t border-border">
+            {report.total_events} events from {report.from} to {report.to}.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Page ──
 
-const Instructor = () => {
+const Instructor = ({ view }: { view?: "funnel" }) => {
   useNoIndex();
   const { id } = useParams();
   const navigate = useNavigate();
@@ -679,6 +886,9 @@ const Instructor = () => {
           </Link>
           {auth === "in" && (
             <div className="flex items-center gap-4">
+              <Link to={view === "funnel" ? "/instructor" : "/instructor/funnel"} className="text-label text-foreground">
+                {view === "funnel" ? "Leads" : "Funnel"}
+              </Link>
               <button type="button" className="text-label text-foreground" onClick={() => loadLeads()}>
                 Refresh
               </button>
@@ -717,6 +927,8 @@ const Instructor = () => {
         {auth === "in" &&
           (error ? (
             <Notice tone="error">{error}</Notice>
+          ) : view === "funnel" ? (
+            <Funnel />
           ) : id ? (
             <Detail id={id} onBack={() => navigate("/instructor")} onChanged={loadLeads} />
           ) : leads ? (

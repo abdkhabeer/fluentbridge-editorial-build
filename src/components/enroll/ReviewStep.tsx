@@ -88,6 +88,7 @@ export const ReviewStep = ({ draft, errors, onEdit, onConsent, honeypot, onHoney
         <Row label="Format">{labelFor(LESSON_FORMATS, draft.lesson_format)}</Row>
         {draft.lesson_format === "small_group" && <Row label="Group">{labelFor(GROUP_STATUSES, draft.group_status)}</Row>}
         <Row label="Lessons per week">{labelFor(WEEKLY_FREQUENCIES, draft.preferred_classes_per_week)}</Row>
+        {draft.is_student && <Row label="Student">Yes. Student ID checked at your first lesson.</Row>}
         <Row label="Package">{packageSummary(draft.selected_package)}</Row>
       </Section>
 
@@ -119,8 +120,8 @@ export const ReviewStep = ({ draft, errors, onEdit, onConsent, honeypot, onHoney
             aria-describedby={errors.consent ? "consent-error" : undefined}
           />
           <span className="text-sm text-foreground leading-relaxed">
-            I agree that Fluent Bridges may use the information I have submitted and my placement test results to evaluate my
-            learning needs and contact me about lessons, as described in the{" "}
+            I agree that FluentBridges may use the information I have submitted, my placement test results, and how I found the
+            website to evaluate my learning needs, email me my results and contact me about lessons, as described in the{" "}
             <Link to="/privacy" target="_blank" className="underline underline-offset-2 hover:text-navy">
               privacy policy
             </Link>

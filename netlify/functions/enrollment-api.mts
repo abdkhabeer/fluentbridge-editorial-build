@@ -3,9 +3,9 @@
 // for several students sharing one mobile-carrier IP.
 import { handleNetlifyRequest } from "../../server/netlify";
 
-export default (req: Request, context: { deploy?: { context?: string }; ip?: string }) => handleNetlifyRequest(req, context);
+export default (req: Request, context: { deploy?: { context?: string }; ip?: string; waitUntil?: (work: Promise<unknown>) => void }) => handleNetlifyRequest(req, context);
 
 export const config = {
-  path: ["/api/assessment", "/api/assessment/*"],
+  path: ["/api/assessment", "/api/assessment/*", "/api/events"],
   rateLimit: { windowLimit: 120, windowSize: 60, aggregateBy: ["ip", "domain"] },
 };

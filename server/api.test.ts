@@ -1,11 +1,14 @@
 // @vitest-environment node
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import { randomBytes } from "node:crypto";
 import { QUESTIONS } from "../src/lib/assessment/questions";
 import { emptyDraft, type EnrollmentDraft } from "../src/lib/enrollment/schema";
 import { ANSWER_KEY } from "./assessment/answerKey";
 import {
   APPLICATIONS_PER_IP_PER_DAY,
+  ATTRIBUTION_MIN_CONSENT_VERSION,
+  consentCoversAttribution,
+  consentVersionNumber,
   handleApiRequest,
   runRetention,
   type ApiContext,
@@ -141,7 +144,7 @@ describe("POST /api/applications", () => {
     const { res } = await submit(token(), validDraft({ ...ksa, selected_package: "ksa-monthly-3" }));
     expect(res.status).toBe(201);
     const a = await app(res.body.application_id);
-    expect(a!.selected_package_price_snapshot).toMatchObject({ currency: "SAR", price: 450, price_egp: null, billing: "monthly", classes_per_week: 3, lessons: 12 });
+    expect(a!.selected_package_price_snapshot).toMatchObject({ package_id: "ksa-monthly-3", currency: "SAR", price: 855, price_egp: null, billing: "monthly", classes_per_week: 3, lessons: 12 });
     expect(a!.review_flags).not.toContain("pricing_quote_needed");
   });
 
@@ -299,7 +302,10 @@ describe("placement assessment", () => {
     const { t, res } = await submit();
     await call("POST", "/api/assessment/objective", { answers: allCorrect }, asStudent(t));
     const done = await call("POST", "/api/assessment/complete", { text: "I think remote work is productive.\u0000" }, asStudent(t));
-    expect(done.body.result).toMatchObject({ full_name: "Mona Adel", estimated_cefr_level: "C2", writing_status: "submitted", overall_score: 100 });
+    expect(done.body.result).toMatchObject({ full_name: "Mona Adel", estimated_cefr_level: "C2", writing_status: "submitted", trial_price: "100 EGP" });
+    // Exact scores stay in the lead admin.
+    expect(done.body.result.overall_score).toBeUndefined();
+    expect(done.body.result.objective_score).toBeUndefined();
     const again = await call("POST", "/api/assessment/complete", { text: "Different" }, asStudent(t));
     expect(again.body).toEqual(done.body);
     const a = await assessmentOf(res.body.application_id);
@@ -477,6 +483,30 @@ describe("instructor lead management", () => {
     expect(detail.body.assessment.writing.response).toBe("My writing sample.");
   });
 
+  it("records WhatsApp follow-ups, marks Message 1 as Contacted, and clears the waiting badge data", async () => {
+    const { id } = await completeLead();
+    const auth = await signIn();
+    let row = (await call("GET", "/api/instructor/leads", undefined, auth)).body.leads[0];
+    expect(row).toMatchObject({ follow_up_count: 0, assessment_completed_at: now.toISOString() });
+
+    const m1 = await call("POST", `/api/instructor/leads/${id}/follow-ups`, { message: 1 }, auth);
+    expect(m1.status).toBe(200);
+    expect(m1.body.application.lead_status).toBe("contacted");
+    expect(m1.body.application.follow_up_events).toEqual([{ type: "follow_up_1_sent", at: now.toISOString() }]);
+    row = (await call("GET", "/api/instructor/leads", undefined, auth)).body.leads[0];
+    expect(row.follow_up_count).toBe(1);
+
+    // Later messages are recorded but never move a lead backwards.
+    await call("PATCH", `/api/instructor/leads/${id}`, { lead_status: "enrolled", application_version: m1.body.application_version }, auth);
+    const again = await call("POST", `/api/instructor/leads/${id}/follow-ups`, { message: 1 }, auth);
+    expect(again.body.application.lead_status).toBe("enrolled");
+    const m3 = await call("POST", `/api/instructor/leads/${id}/follow-ups`, { message: 3 }, auth);
+    expect(m3.body.application.follow_up_events.map((e: { type: string }) => e.type)).toEqual(["follow_up_1_sent", "follow_up_1_sent", "follow_up_3_sent"]);
+
+    expect((await call("POST", `/api/instructor/leads/${id}/follow-ups`, { message: 5 }, auth)).status).toBe(422);
+    expect((await call("POST", `/api/instructor/leads/${id}/follow-ups`, { message: 1 })).status).toBe(401);
+  });
+
   it("rejects stale edits instead of silently overwriting newer changes", async () => {
     const { id } = await completeLead();
     const auth = await signIn();
@@ -521,7 +551,36 @@ describe("instructor lead management", () => {
     );
     expect(upd.status).toBe(200);
     expect(upd.body.assessment).toMatchObject({ writing_score: 50, overall_score: 90, instructor_level: "C1", estimated_cefr_level: "C2" });
-    expect((await call("GET", "/api/assessment", undefined, asStudent(t))).body.result).toMatchObject({ estimated_cefr_level: "C2", overall_score: 90 });
+    expect((await call("GET", "/api/assessment", undefined, asStudent(t))).body.result).toMatchObject({ estimated_cefr_level: "C2", writing_status: "scored" });
+  });
+
+  it("scores new submissions with fb-objective-v2 and keeps a v1 record as v1 when writing is scored", async () => {
+    const auth = await signIn();
+    const fresh = await completeLead();
+    expect((await call("GET", `/api/instructor/leads/${fresh.id}`, undefined, auth)).body.assessment.scoring_method).toBe("fb-objective-v2");
+
+    // A record scored before v2 shipped: weak A2, lucky B1 and B2. v1 placed it at B2; v2 would say A1.
+    const old = await completeLead();
+    const a = (await assessmentOf(old.id))!;
+    const key = keys.assessment(a.id);
+    const stored = (await ctx.store.get<AssessmentRecord>(key))!;
+    stored.value.objective = { ...stored.value.objective!, scoring_method: "fb-objective-v1", estimated_cefr_level: "B2" };
+    expect(await ctx.store.replace(key, stored.value, stored.etag)).toBe(true);
+
+    const seen = (await call("GET", `/api/instructor/leads/${old.id}`, undefined, auth)).body;
+    expect(seen.assessment).toMatchObject({ scoring_method: "fb-objective-v1", estimated_cefr_level: "B2" });
+    const upd = await call(
+      "PATCH",
+      `/api/instructor/leads/${old.id}`,
+      {
+        writing_rubric: { grammar: 2, vocabulary: 2, structure: 2, coherence: 2, task: 2 },
+        application_version: seen.application_version,
+        assessment_version: seen.assessment_version,
+      },
+      auth,
+    );
+    expect(upd.body.assessment).toMatchObject({ scoring_method: "fb-objective-v1+instructor-writing", estimated_cefr_level: "B2" });
+    expect((await call("GET", "/api/assessment", undefined, asStudent(old.t))).body.result.estimated_cefr_level).toBe("B2");
   });
 
   it("corrects contact details with validation", async () => {
@@ -554,7 +613,129 @@ describe("instructor lead management", () => {
   });
 });
 
+describe("funnel events and attribution", () => {
+  const sid = "b".repeat(32);
+
+  it("stores anonymous events and reports the funnel to the instructor only", async () => {
+    expect((await call("POST", "/api/events", { name: "intake_started", session_id: sid })).status).toBe(202);
+    await call("POST", "/api/events", { name: "intake_step_completed", session_id: sid, props: { step: 1 } });
+    await call("POST", "/api/events", { name: "intake_started", session_id: "c".repeat(32) });
+    expect((await call("POST", "/api/events", { name: "intake_started", session_id: "sara@example.com" })).status).toBe(422);
+    const stored = [...ctx.store.data.entries()].filter(([k]) => k.startsWith("events/"));
+    expect(stored).toHaveLength(3);
+    expect(JSON.stringify(stored)).not.toMatch(/ip|user.?agent|@/i);
+
+    const day = now.toISOString().slice(0, 10);
+    expect((await call("GET", `/api/instructor/funnel?from=${day}&to=${day}`)).status).toBe(401);
+    const auth = await signIn();
+    const report = await call("GET", `/api/instructor/funnel?from=${day}&to=${day}`, undefined, auth);
+    expect(report.body.total_events).toBe(3);
+    expect(report.body.steps.slice(0, 2)).toEqual([
+      { label: "Started the intake form", sessions: 2, conversion: null },
+      { label: "Completed intake step 1", sessions: 1, conversion: 50 },
+    ]);
+    expect((await call("GET", "/api/instructor/funnel?from=2026-01-01&to=2026-12-31", undefined, auth)).status).toBe(422);
+  });
+
+  const attribution = () => ({ utm_source: "Instagram", utm_medium: "social", utm_campaign: null, utm_content: null, referrer: null, landing_path: "/", captured_at: now.toISOString() });
+
+  const apply = async () =>
+    app((await call("POST", "/api/applications", { application: validDraft(), access_token: token(), attribution: attribution(), analytics_session_id: sid })).body.application_id);
+
+  it("ignores attribution unless FEATURE_LEAD_ATTRIBUTION is on, even with v3 consent", async () => {
+    const a = await apply();
+    expect(a!.consent_version).toBe("2026-10-enrollment-v3");
+    expect(a!.attribution).toBeUndefined();
+    expect(a!.analytics_session_id).toBeUndefined();
+  });
+
+  it("stores no attribution with the flag on when the consent version is older or missing", async () => {
+    ctx.config.leadAttribution = true;
+    for (const version of ["2026-10-enrollment-v2", "2026-09-enrollment-v1", "", "enrollment-v9", "2026-10-enrollment-v3-draft"]) {
+      ctx.config.consentVersion = version;
+      const a = await apply();
+      expect(a!.consent_version, version).toBe(version);
+      expect(a!.attribution, version).toBeUndefined();
+      expect(a!.analytics_session_id, version).toBeUndefined();
+    }
+  });
+
+  it("orders consent versions by number, so later versions still allow attribution", () => {
+    expect(consentVersionNumber("2026-10-enrollment-v3")).toBe(3);
+    expect(consentVersionNumber("2027-01-enrollment-v12")).toBe(12);
+    expect(consentVersionNumber("2026-10-enrollment-v")).toBeNull();
+    expect(consentVersionNumber(undefined)).toBeNull();
+    expect(consentCoversAttribution(ATTRIBUTION_MIN_CONSENT_VERSION)).toBe(true);
+    expect(consentCoversAttribution("2027-03-enrollment-v4")).toBe(true);
+    // String comparison would get this wrong ("v10" < "v3").
+    expect(consentCoversAttribution("2027-06-enrollment-v10")).toBe(true);
+    expect(consentCoversAttribution("2026-10-enrollment-v2")).toBe(false);
+    expect(consentCoversAttribution(null)).toBe(false);
+  });
+
+  it("stores attribution and the session id on new leads with the flag on and v3 consent, and shows the source", async () => {
+    ctx.config.leadAttribution = true;
+    const a = await apply();
+    expect(a!).toMatchObject({ consent_version: "2026-10-enrollment-v3", attribution: { utm_source: "Instagram", landing_path: "/" }, analytics_session_id: sid });
+    ctx.config.consentVersion = "2027-06-enrollment-v10";
+    expect((await apply())!.attribution).toMatchObject({ utm_source: "Instagram" });
+    const list = await call("GET", "/api/instructor/leads", undefined, await signIn());
+    expect(list.body.leads[0].source).toBe("instagram");
+  });
+});
+
+describe("new-lead alert email", () => {
+  const finish = async () => {
+    const { t, res } = await submit();
+    await call("POST", "/api/assessment/objective", { answers: allCorrect }, asStudent(t));
+    return { t, id: res.body.application_id as string, done: await call("POST", "/api/assessment/complete", { skipped: true }, asStudent(t)) };
+  };
+
+  it("sends one alert when a lead completes the test, not again on a repeat", async () => {
+    const fetch = vi.fn(async () => new Response("{}", { status: 200 }));
+    ctx.config.email = { apiKey: "re_test", to: "alerts@example.com", fetch };
+    const { t, id } = await finish();
+    await call("POST", "/api/assessment/complete", { skipped: true }, asStudent(t));
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const body = JSON.parse((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(body.subject).toBe("New lead: Mona, C2");
+    expect(body.text).toContain("Goal: business English and workplace communication");
+    expect(body.text).toContain(`https://fluentbridges.com/instructor/${id}`);
+    expect(body.text).toMatch(/https:\/\/wa\.me\/201012345678\?text=Hi%20Mona/);
+  });
+
+  it("never blocks the lead when sending fails, and hands the work to waitUntil when available", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    ctx.config.email = { apiKey: "re_test", to: "alerts@example.com", fetch: async () => Promise.reject(new Error("down")) };
+    const waited: Promise<unknown>[] = [];
+    ctx.waitUntil = (w) => waited.push(w);
+    const { done, id } = await finish();
+    expect(done.status).toBe(200);
+    expect(done.body.result.estimated_cefr_level).toBe("C2");
+    expect(waited).toHaveLength(1);
+    await expect(waited[0]).resolves.toBeUndefined();
+    expect((await app(id))!.lead_status).toBe("assessment_completed");
+  });
+
+  it("is off without RESEND_API_KEY", async () => {
+    const fetch = vi.fn();
+    ctx.config.email = { to: "alerts@example.com", fetch };
+    expect((await finish()).done.status).toBe(200);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
 describe("retention", () => {
+  it("deletes anonymous events older than 12 months", async () => {
+    const sid = "d".repeat(32);
+    await call("POST", "/api/events", { name: "intake_started", session_id: sid });
+    now = new Date(T0.getTime() + 300 * DAY);
+    await call("POST", "/api/events", { name: "intake_started", session_id: sid });
+    const report = await runRetention(ctx.store, new Date(T0.getTime() + 366 * DAY));
+    expect(report.events).toBe(1);
+    expect(await ctx.store.list("events/")).toHaveLength(1);
+  });
+
   it("deletes inactive prospects after 12 months, keeps enrolled students and recent leads, and prunes tokens and counters", async () => {
     ctx.clientIp = "203.0.113.9";
     const old = await submit();

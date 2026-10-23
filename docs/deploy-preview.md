@@ -64,6 +64,14 @@ Use made-up test data only.
 14. In Pricing, switch between every location. Cairo, Saudi Arabia and the US show their prices; the others show a request button that opens the contact form with the request type and country filled in. Send one UK pricing request with test data (WhatsApp only) and confirm it appears under Netlify Forms with `request_type`, `country` and `currency`.
 15. Check that the pricing buttons open `/enroll` with the right package preselected, that `/privacy` loads from the footer on mobile, and that the browser console shows no CSP errors.
 
+**Funnel and pricing (fix/funnel-and-pricing)**
+
+16. `curl -sI https://<preview>/no-such-page` returns `404`; `/enroll` and `/instructor/funnel` return `200`. `/sitemap.xml` and `/robots.txt` load.
+17. Finish a test lead. Within a minute the lead list shows "waiting 0 min" (amber after 5 minutes). Message 1 opens WhatsApp with the message filled in and sets the lead to Contacted.
+18. `/instructor/funnel` shows the test visitor at each step.
+19. Pricing: US $20 / $228 / $360, Saudi Arabia 75 / 855 / 1,350 SAR, UK 15 / 170 / 265 GBP, each with a trial card.
+20. The results page shows a level range and "Book my trial". Without `BOOKING_URL` it opens WhatsApp.
+
 ## 4. After testing
 
 - Delete preview test leads from the preview dashboard. Deploy-scoped preview data doesn't affect production either way.

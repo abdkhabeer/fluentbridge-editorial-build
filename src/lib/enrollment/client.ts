@@ -1,6 +1,7 @@
 import type { OptionId, WritingPrompt } from "@/lib/assessment/questions";
 import type {
   CreateApplicationResponse,
+  FunnelReport,
   LeadDetail,
   LeadSummary,
   LeadUpdate,
@@ -8,6 +9,7 @@ import type {
   StudentResult,
 } from "./apiTypes";
 import type { EnrollmentDraft, FieldErrors } from "./schema";
+import type { Attribution } from "../analytics/events";
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public fields?: FieldErrors) {
@@ -55,9 +57,14 @@ export const newAccessToken = () =>
 type Answers = Record<string, OptionId | null>;
 
 export const studentApi = {
-  createApplication: (application: EnrollmentDraft, accessToken: string, website: string) =>
+  createApplication: (
+    application: EnrollmentDraft,
+    accessToken: string,
+    website: string,
+    tracking?: { attribution: Attribution | null; analytics_session_id: string },
+  ) =>
     request<CreateApplicationResponse>("POST", "/api/applications", {
-      body: { application, access_token: accessToken, website },
+      body: { application, access_token: accessToken, website, ...(tracking ?? {}) },
     }),
   getAssessment: (token: string) => request<StudentAssessmentState>("GET", "/api/assessment", { token }),
   saveAnswers: (token: string, answers: Answers) =>
@@ -80,5 +87,9 @@ export const instructorApi = {
   lead: (id: string) => request<LeadDetail>("GET", `/api/instructor/leads/${encodeURIComponent(id)}`),
   updateLead: (id: string, update: LeadUpdate) =>
     request<LeadDetail>("PATCH", `/api/instructor/leads/${encodeURIComponent(id)}`, { body: update }),
+  recordFollowUp: (id: string, message: number) =>
+    request<LeadDetail>("POST", `/api/instructor/leads/${encodeURIComponent(id)}/follow-ups`, { body: { message } }),
+  funnel: (from: string, to: string) =>
+    request<FunnelReport>("GET", `/api/instructor/funnel?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
   deleteLead: (id: string) => request<{ deleted: boolean }>("DELETE", `/api/instructor/leads/${encodeURIComponent(id)}`),
 };

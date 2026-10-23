@@ -1,9 +1,14 @@
-import { MessageCircle, Mail, ShieldCheck } from "lucide-react";
+import { CalendarCheck, MessageCircle, Mail, ShieldCheck } from "lucide-react";
+import { levelRange, nextLevel } from "@/lib/assessment/levels";
 import { CATEGORY_LABELS, type Category, type CefrLevel } from "@/lib/assessment/questions";
 import type { StudentResult } from "@/lib/enrollment/apiTypes";
 import { LEARNING_GOALS, LESSON_FORMATS, PAYMENT_METHODS, WEEKLY_FREQUENCIES, labelFor } from "@/lib/enrollment/options";
 import { CONTACT } from "@/lib/contact";
-import { packageSummary, whatsappLink } from "@/lib/enrollment/display";
+import { bookingLink, packageSummary, whatsappLink } from "@/lib/enrollment/display";
+import { goalText, renderSentences, strongestSkill } from "@/lib/enrollment/followUp";
+import { BOOKING_URL, featureFlags } from "@/lib/featureFlags";
+import { useEffect } from "react";
+import { track, trackOnce } from "@/lib/analytics/client";
 import { Notice } from "./fields";
 
 const LEVEL_DESCRIPTIONS: Record<CefrLevel, string> = {
@@ -33,8 +38,20 @@ const ListCard = ({ title, items, note }: { title: string; items: string[]; note
 
 type Props = { result: StudentResult; onRemoveData?: () => void; removing?: boolean };
 
+const NEXT_STEP = [
+  "Your {strength} is your strongest skill.",
+  "This test can't measure speaking, so the next step is a 30 minute trial.",
+  "I'll hear you speak and send you a written plan for {goal}.",
+];
+
 export const ResultsView = ({ result, onRemoveData, removing }: Props) => {
   const firstName = result.full_name.split(" ")[0];
+  const range = levelRange(result.estimated_cefr_level);
+  const target = nextLevel(result.estimated_cefr_level);
+  const strongest = strongestSkill(result.category_scores);
+  const nextStep = renderSentences(NEXT_STEP, { strength: strongest?.label, goal: goalText(result) });
+
+  useEffect(() => trackOnce("results_viewed"), []);
   const goals = [result.primary_learning_goal, ...result.additional_learning_goals]
     .map((g) => (g === "other" && result.other_goal_text ? result.other_goal_text : labelFor(LEARNING_GOALS, g)));
 
@@ -43,7 +60,18 @@ export const ResultsView = ({ result, onRemoveData, removing }: Props) => {
       <header>
         <p className="text-label text-muted-foreground mb-3">Your results</p>
         <h1 className="text-editorial-md text-foreground mb-2">Well done, {result.full_name}.</h1>
-        <p className="text-muted-foreground">You've completed the Fluent Bridges placement test.</p>
+        <p className="text-muted-foreground">You've completed the FluentBridges placement test.</p>
+        {strongest ? (
+          <p className="mt-4 text-label text-navy">
+            Your strongest skill: {strongest.label}, {strongest.correct} of {strongest.total}
+          </p>
+        ) : (
+          result.strengths.length > 0 && (
+            <div className="mt-6">
+              <ListCard title="What you did well" items={result.strengths} />
+            </div>
+          )
+        )}
       </header>
 
       {/* Measured results */}
@@ -53,21 +81,14 @@ export const ResultsView = ({ result, onRemoveData, removing }: Props) => {
         </h2>
         <div className="bg-foreground text-background p-6 sm:p-8">
           <p className="text-label text-background/60 mb-2">Estimated English Level</p>
-          <p className="font-serif text-6xl sm:text-7xl font-light mb-4">{result.estimated_cefr_level}</p>
+          <p className="font-serif text-5xl sm:text-7xl font-light mb-4">{range}</p>
           <p className="text-background/80 leading-relaxed max-w-xl">{LEVEL_DESCRIPTIONS[result.estimated_cefr_level]}</p>
-          <div className="mt-6 pt-6 border-t border-background/15 grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-background/60 text-xs uppercase tracking-wider mb-1">Overall score</p>
-              <p className="font-serif text-3xl">{result.overall_score}%</p>
-            </div>
-            <div>
-              <p className="text-background/60 text-xs uppercase tracking-wider mb-1">Correct answers</p>
-              <p className="font-serif text-3xl">
-                {result.objective_score.points}
-                <span className="text-lg text-background/60"> / {result.objective_score.max}</span>
-              </p>
-            </div>
-          </div>
+          {target && (
+            <p className="mt-6 pt-6 border-t border-background/15 text-sm">
+              <span className="text-background/60 text-xs uppercase tracking-wider block mb-1">Your next target</span>
+              <span className="font-serif text-3xl">{target}</span>
+            </p>
+          )}
         </div>
 
         <p className="text-sm text-muted-foreground leading-relaxed">
@@ -105,15 +126,17 @@ export const ResultsView = ({ result, onRemoveData, removing }: Props) => {
                     ? "Skipped"
                     : result.writing_status === "scored"
                       ? "Reviewed by your instructor"
-                      : "Awaiting instructor review"}
+                      : featureFlags.reviewSlaCopy
+                        ? "I'll review your writing within 24 hours and update your level."
+                        : "Awaiting instructor review"}
                 </dd>
               </div>
             </div>
           </dl>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <ListCard title="Strengths you showed" items={result.strengths} />
+        <div className={strongest ? "grid gap-6 md:grid-cols-2" : "grid gap-6"}>
+          {strongest && <ListCard title="Strengths you showed" items={result.strengths} />}
           <ListCard title="Areas to work on" items={result.improvement_areas.length ? result.improvement_areas : ["No clear gaps at this level. Your instructor will help you set new challenges."]} />
         </div>
       </section>
@@ -160,26 +183,34 @@ export const ResultsView = ({ result, onRemoveData, removing }: Props) => {
         <h2 id="next" className="text-editorial-md text-foreground">
           Your next step
         </h2>
+        <p className="text-muted-foreground leading-relaxed">{nextStep}</p>
         <p className="text-muted-foreground leading-relaxed">
-          Your instructor will review your results and confirm the most suitable learning plan, package, and lesson times with you. You
-          haven't been charged and no lessons are booked yet. Nothing is confirmed until you've spoken with your instructor.
+          Nothing is charged and nothing is booked until you confirm.
+          {featureFlags.trialRefundCopy && " If you don't leave the trial with a clear plan, the fee is refunded."}
         </p>
-        <p className="text-muted-foreground leading-relaxed">
-          This test doesn't measure speaking or listening. A 30-minute trial lesson is the best way to check your speaking, pronunciation,
-          and fluency.
-        </p>
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           <a
-            href={whatsappLink(firstName, result.estimated_cefr_level)}
+            href={bookingLink(BOOKING_URL)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-2 text-label px-8 py-4 bg-foreground text-background hover:bg-navy transition-colors"
+            onClick={() => track("trial_cta_clicked", { location: "results" })}
+            className="inline-flex items-center justify-center gap-2 text-label text-center px-8 py-4 bg-foreground text-background hover:bg-navy transition-colors"
           >
-            <MessageCircle size={16} /> Discuss My Results on WhatsApp
+            <CalendarCheck size={16} className="shrink-0" />
+            {result.trial_price ? `Book my trial: ${result.trial_price}, credited to your package` : "Book my 30 minute trial"}
+          </a>
+          <a
+            href={whatsappLink(firstName, range)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => track("whatsapp_clicked", { location: "results" })}
+            className="inline-flex items-center justify-center gap-2 text-label px-8 py-4 border border-foreground text-foreground hover:bg-foreground hover:text-background transition-colors"
+          >
+            <MessageCircle size={16} /> Ask Abdul on WhatsApp
           </a>
           <a
             href="/#contact"
-            className="inline-flex items-center justify-center gap-2 text-label px-8 py-4 border border-foreground text-foreground hover:bg-foreground hover:text-background transition-colors"
+            className="inline-flex items-center justify-center gap-2 text-label px-8 py-4 text-foreground underline underline-offset-4 hover:text-navy transition-colors"
           >
             <Mail size={16} /> Send a message instead
           </a>
