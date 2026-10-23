@@ -83,10 +83,10 @@ const Privacy = () => {
             address and the date for no more than two days.
           </p>
           <p>
-            We count visits and steps on this site, for example that someone started or finished the placement test, so we can fix what
-            is confusing. We do this ourselves, with no third-party analytics or advertising trackers. Each event stores only its name, a
-            random session ID, a few non-personal details such as the step number, and the time. It does not store your name, email,
-            phone number, IP address or browser details. The random ID is kept in your browser and replaced after 30 days. We delete
+            We count actions on this site, such as starting or finishing the placement test or clicking a WhatsApp or trial button, so we
+            can fix what is confusing. We do this ourselves, with no third-party analytics or advertising trackers. Each event stores only
+            its name, a random session ID, a few non-personal details such as the step number or which button was clicked, and the time.
+            It does not store your name, email, phone number, IP address or browser details. The random ID is kept in your browser and replaced after 30 days. We delete
             these events after 12 months.
           </p>
           <p>
@@ -123,7 +123,7 @@ const Privacy = () => {
                 website and provides its storage (Netlify Blobs) and server functions. Contact-form messages are stored by Netlify Forms.
                 Netlify is a US-based company, and your data may be stored and processed outside Egypt.
               </>,
-              "We use Netlify to host the site and Resend to email us a notification when you complete the placement test. That notification includes the details you submitted.",
+              "We use Netlify to host the site and Resend to email us a notification when you complete the placement test. That notification includes your name, WhatsApp number, goal, preferred days and times, level and a suggested first reply, along with how you found the site if you agreed to share that.",
               "Only your instructor can view applications and results, through a password-protected dashboard. Netlify processes the data only to provide its service.",
               "This site loads its fonts from Google Fonts, so Google receives your IP address when the page loads.",
               "If you choose to message us on WhatsApp, that conversation is handled by WhatsApp (Meta) under its own terms.",

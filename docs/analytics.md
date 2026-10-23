@@ -27,17 +27,19 @@ The admin Funnel view is at `/instructor/funnel`: distinct browsers per step and
 
 Replaces "We don't use analytics, advertising, or tracking cookies." in `src/pages/Privacy.tsx`:
 
-> We count visits and steps on this site, for example that someone started or finished the placement test, so we can fix what is confusing. We do this ourselves, with no third-party analytics or advertising trackers. Each event stores only its name, a random session ID, a few non-personal details such as the step number, and the time. It does not store your name, email, phone number, IP address or browser details. The random ID is kept in your browser and replaced after 30 days. We delete these events after 12 months.
+> We count actions on this site, such as starting or finishing the placement test or clicking a WhatsApp or trial button, so we can fix what is confusing. We do this ourselves, with no third-party analytics or advertising trackers. Each event stores only its name, a random session ID, a few non-personal details such as the step number or which button was clicked, and the time. It does not store your name, email, phone number, IP address or browser details. The random ID is kept in your browser and replaced after 30 days. We delete these events after 12 months.
 
 Added to "Where it is stored and who can see it":
 
-> We use Netlify to host the site and Resend to email us a notification when you complete the placement test. That notification includes the details you submitted.
+> We use Netlify to host the site and Resend to email us a notification when you complete the placement test. That notification includes your name, WhatsApp number, goal, preferred days and times, level and a suggested first reply, along with how you found the site if you agreed to share that.
 
-Known gaps between this wording and the code, reported to the owner and not reworded:
-- There is no page-visit event. Events are the eight funnel events listed above, so "We count visits" describes more than is recorded.
-- The alert email includes the name, WhatsApp number (in the Message 1 link), goal, preferred days and times, level range and source. It does not include the email address, city, alternative phone or written answer.
+Checked against the code (October 2026):
+- Events: the eight funnel events above. `whatsapp_clicked` and `trial_cta_clicked` record where the button was (`location`), from the header, footer, contact section, call-to-action section and results page.
+- Alert email: name, level range, goal, preferred days and times, the Message 1 `wa.me` link (WhatsApp number and a suggested first reply), a link to the lead in the admin, and "Source:" when attribution was stored.
+- "Remove my data from this device" (results page only) clears every key in `src/lib/browserStorage.ts`: `fb-enrollment-v1`, `fb-pricing-location`, `fb-analytics-session-v1`, `fb-attribution-v1` and `fb-analytics-once-v1`.
+- Saved attribution older than 30 days is deleted when the page reads it.
 
-Held back because the code does not behave this way: "If you arrive from a link with a source tag, such as a WhatsApp message, we keep that source in your browser for up to 30 days and, only if you agree on the enrollment form, attach it to your submission so we know how you found us." In the code, `captureAttribution` runs on every first visit, with or without a source tag. It stores the referring page and landing path as well as the tags, and keeps the first visit's values even if a later visit has a tag.
+Held back, not applied: "When you first visit the site, we save in your browser where you came from ... You can clear it any time with "Remove my data from this device"." The button is only on the results page, after the placement test, so visitors who never apply, or stop partway, can't reach it. "Any time" is not true.
 
 ### Consent checkbox (`src/components/enroll/ReviewStep.tsx`), version `2026-10-enrollment-v3`
 
