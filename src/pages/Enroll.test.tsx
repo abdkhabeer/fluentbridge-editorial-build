@@ -347,7 +347,7 @@ describe("privacy policy", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "We use Netlify to host the site and Resend to email us a notification when you complete the placement test. That notification includes your name, WhatsApp number, goal, preferred days and times, level and a suggested first reply, along with how you found the site if you agreed to share that.",
+        "We use Netlify to host the site and Resend to email us a notification when you sign up and when you finish the placement test. Each notification includes your name, WhatsApp number, goal, preferred days and times, whether you took the test, your level once you have, and a suggested first reply, along with how you found the site if you agreed to share that.",
       ),
     ).toBeInTheDocument();
     expect(

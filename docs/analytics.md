@@ -31,11 +31,11 @@ Replaces "We don't use analytics, advertising, or tracking cookies." in `src/pag
 
 Added to "Where it is stored and who can see it":
 
-> We use Netlify to host the site and Resend to email us a notification when you complete the placement test. That notification includes your name, WhatsApp number, goal, preferred days and times, level and a suggested first reply, along with how you found the site if you agreed to share that.
+> We use Netlify to host the site and Resend to email us a notification when you sign up and when you finish the placement test. Each notification includes your name, WhatsApp number, goal, preferred days and times, whether you took the test, your level once you have, and a suggested first reply, along with how you found the site if you agreed to share that.
 
 Checked against the code (October 2026):
 - Events: the eight funnel events above. `whatsapp_clicked` and `trial_cta_clicked` record where the button was (`location`), from the header, footer, contact section, call-to-action section and results page.
-- Alert email: name, level range, goal, preferred days and times, the Message 1 `wa.me` link (WhatsApp number and a suggested first reply), a link to the lead in the admin, and "Source:" when attribution was stored.
+- Alert emails: one when the form is submitted and one when the test is completed. Each has the name, the test status, goal, preferred days and times, the Message 1 `wa.me` link (WhatsApp number and a suggested first reply), a link to the lead in the admin, and "Source:" when attribution was stored. The completion alert adds the level range. The sign-up alert adds the city and country, which the approved privacy sentence doesn't list.
 - "Remove my data from this device" (results page only) clears every key in `src/lib/browserStorage.ts`: `fb-enrollment-v1`, `fb-pricing-location`, `fb-analytics-session-v1`, `fb-attribution-v1` and `fb-analytics-once-v1`.
 - Saved attribution older than 30 days is deleted when the page reads it.
 
