@@ -126,7 +126,7 @@ const Privacy = () => {
                 website and provides its storage (Netlify Blobs) and server functions. Contact-form messages are stored by Netlify Forms.
                 Netlify is a US-based company, and your data may be stored and processed outside Egypt.
               </>,
-              "We use Netlify to host the site and Resend to email us a notification when you sign up and when you finish the placement test. Each notification includes your name, WhatsApp number, goal, preferred days and times, whether you took the test, your level once you have, and a suggested first reply, along with how you found the site if you agreed to share that.",
+              "We use Netlify to host the site and Resend to email us a notification when you sign up and when you finish the placement test. These notifications include some of the details you submitted, such as your name, WhatsApp number, location, goal, and preferred days and times, whether you took the test, your level once you have, and a suggested first reply, along with how you found the site if you agreed to share that.",
               "Only your instructor can view applications and results, through a password-protected dashboard. Netlify processes the data only to provide its service.",
               "This site loads its fonts from Google Fonts, so Google receives your IP address when the page loads.",
               "If you choose to message us on WhatsApp, that conversation is handled by WhatsApp (Meta) under its own terms.",
