@@ -561,6 +561,7 @@ const alertNewLead = async (req: Request, ctx: ApiContext, application: Applicat
       category_scores: a.objective.category_scores,
       improvement_areas: a.improvement_areas,
       trial_price: trialPriceFor(application.country, application.city),
+      test_status: a.status,
     },
     { level: a.objective.estimated_cefr_level, now: nowDate(ctx), trialRefundCopy: false, siteOrigin: new URL(req.url).origin },
   );

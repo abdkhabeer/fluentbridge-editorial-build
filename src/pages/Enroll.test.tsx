@@ -34,12 +34,15 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
 });
 
+const randomToken = () => Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("");
+
 const renderAt = (path: string) =>
   render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/enroll" element={<Enroll />} />
         <Route path="/instructor" element={<Instructor />} />
+        <Route path="/instructor/:id" element={<Instructor />} />
         <Route path="/privacy" element={<Privacy />} />
       </Routes>
     </MemoryRouter>,
@@ -465,6 +468,63 @@ describe("instructor view", () => {
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "wrong-password" } });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     expect(await screen.findByText("Incorrect password.")).toBeInTheDocument();
+  });
+
+  it("Message 1 mentions the test only for leads who completed it", async () => {
+    // Cookie jar for this test: the fetch stub doesn't keep cookies on its own.
+    let cookie = "";
+    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      if (cookie) headers.set("cookie", cookie);
+      const res = await handleApiRequest(new Request(`http://localhost${url}`, { ...init, headers }), ctx);
+      const set = res.headers.get("set-cookie");
+      if (set) cookie = set.split(";")[0];
+      return res;
+    });
+    const api = (method: string, path: string, body: unknown, token: string) =>
+      handleApiRequest(
+        new Request(`http://localhost${path}`, {
+          method,
+          headers: { "Content-Type": "application/json", "X-Assessment-Token": token },
+          body: JSON.stringify(body),
+        }),
+        ctx,
+      );
+    const lead = async (name: string, stage: "not_started" | "started" | "completed") => {
+      const token = randomToken();
+      const application = {
+        ...JSON.parse(JSON.stringify((await import("@/lib/enrollment/schema")).emptyDraft())),
+        full_name: name, country: "Egypt", city: "Cairo", email: "lead@example.com", whatsapp_number: "01012345678",
+        primary_learning_goal: "career", self_reported_level: "intermediate", lesson_format: "one_on_one",
+        preferred_classes_per_week: "2", selected_package: "help", preferred_payment_method: "paypal",
+        preferred_days: ["tue"], preferred_time_of_day: ["evening"], timezone: "Africa/Cairo", consent: true,
+      };
+      expect((await api("POST", "/api/applications", { application, access_token: token }, token)).status).toBe(201);
+      const answers = Object.fromEntries(QUESTIONS.map((q) => [q.id, ANSWER_KEY[q.id].correct]));
+      if (stage !== "not_started") await api("POST", "/api/assessment/objective", { answers }, token);
+      if (stage === "completed") await api("POST", "/api/assessment/complete", { skipped: true }, token);
+    };
+    await lead("Nadia NotStarted", "not_started");
+    await lead("Sami Started", "started");
+    await lead("Carla Completed", "completed");
+
+    renderAt("/instructor");
+    fireEvent.change(await screen.findByLabelText("Password"), { target: { value: "instructor-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    const message1 = async (name: string) => {
+      fireEvent.click(await screen.findByText(name));
+      const link = await screen.findByRole("link", { name: "Message 1" });
+      const text = new URL(link.getAttribute("href")!).searchParams.get("text")!;
+      fireEvent.click(screen.getByRole("button", { name: /All leads|Back/ }));
+      return text;
+    };
+    for (const [name, first] of [["Nadia NotStarted", "Nadia"], ["Sami Started", "Sami"]] as const) {
+      const text = await message1(name);
+      expect(text).toMatch(new RegExp(`^Hi ${first}, it's Abdul from FluentBridges. Thanks for signing up. For job interviews`));
+      expect(text).not.toMatch(/placement test|result|solid|fastest gain/i);
+    }
+    const done = await message1("Carla Completed");
+    expect(done).toContain("I just looked at your placement test.");
   });
 
   it("shows a configuration notice when instructor access is not set up", async () => {

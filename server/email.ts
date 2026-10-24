@@ -4,6 +4,7 @@
 
 import { levelRange } from "../src/lib/assessment/levels";
 import type { CefrLevel } from "../src/lib/assessment/questions";
+import type { AssessmentStatus } from "../src/lib/enrollment/apiTypes";
 import { sourceOf, type Attribution } from "../src/lib/analytics/events";
 import { DAY_NAMES, goalText, renderFollowUp, whatsappUrl, type FollowUpInput } from "../src/lib/enrollment/followUp";
 import { DAYS, TIMES_OF_DAY, labelFor } from "../src/lib/enrollment/options";
@@ -23,26 +24,37 @@ export type EmailConfig = {
 
 export type Email = { subject: string; text: string };
 
-export type NewLeadInput = FollowUpInput & {
+export type NewLeadInput = Omit<FollowUpInput, "test_completed"> & {
   id: string;
   whatsapp_number: string;
   attribution?: Attribution | null;
+  /** Where the lead is in the placement test. Only "completed" has a level to report. */
+  test_status: AssessmentStatus;
 };
 
-export type AlertOptions = { level: CefrLevel; now: Date; trialRefundCopy: boolean; siteOrigin: string };
+export type AlertOptions = { level: CefrLevel | null; now: Date; trialRefundCopy: boolean; siteOrigin: string };
 
 const list = (labels: string[]) => (labels.length ? labels.join(", ") : "Not set");
 
-/** The alert for a lead who just finished the test. Pure, so it can be tested without sending. */
+const TEST_LINE: Record<AssessmentStatus, string> = {
+  completed: "Placement test: completed",
+  in_progress: "Placement test: started, not finished",
+  writing: "Placement test: started, not finished",
+  not_started: "Placement test: not taken yet",
+};
+
+/** The alert for a new lead. It says whether the test was taken, and shows a level only for a completed test. Pure, so it can be tested without sending. */
 export const newLeadAlert = (lead: NewLeadInput, { level, now, trialRefundCopy, siteOrigin }: AlertOptions): Email => {
-  const range = levelRange(level);
-  const message1 = renderFollowUp(1, lead, { now, trialRefundCopy });
+  const completed = lead.test_status === "completed" && level !== null;
+  const range = completed ? levelRange(level) : null;
+  const message1 = renderFollowUp(1, { ...lead, test_completed: completed }, { now, trialRefundCopy });
   const source = sourceOf(lead.attribution);
   const lines = [
-    "A new lead finished the placement test.",
+    completed ? "A new lead finished the placement test." : "A new lead signed up.",
     "",
     `Name: ${lead.full_name}`,
-    `Level: ${range}`,
+    TEST_LINE[lead.test_status],
+    ...(range ? [`Level: ${range}`] : []),
     `Goal: ${goalText(lead) || "Not set"}`,
     `Preferred days: ${list(DAYS.filter((d) => lead.preferred_days.includes(d.value)).map((d) => DAY_NAMES[d.value]))}`,
     `Preferred time: ${list(lead.preferred_time_of_day.map((t) => labelFor(TIMES_OF_DAY, t)))}`,
@@ -54,7 +66,9 @@ export const newLeadAlert = (lead: NewLeadInput, { level, now, trialRefundCopy, 
     "Open the lead:",
     `${siteOrigin}/instructor/${lead.id}`,
   ];
-  return { subject: `New lead: ${lead.full_name.trim().split(/\s+/)[0] || "student"}, ${range}`, text: lines.join("\n") };
+  const firstName = lead.full_name.trim().split(/\s+/)[0] || "student";
+  const progress = range ?? (lead.test_status === "not_started" ? "test not taken" : "test not finished");
+  return { subject: `New lead: ${firstName}, ${progress}`, text: lines.join("\n") };
 };
 
 /** True when an API key and a recipient are set. */

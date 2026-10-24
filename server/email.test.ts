@@ -21,6 +21,7 @@ const lead = (over: Partial<NewLeadInput> = {}): NewLeadInput => ({
   },
   improvement_areas: ["Review the past simple (A2)."],
   trial_price: "100 EGP",
+  test_status: "completed",
   attribution: { utm_source: "Instagram", utm_medium: null, utm_campaign: null, utm_content: null, referrer: null, landing_path: "/", captured_at: "2026-10-18T10:00:00.000Z" },
   ...over,
 });
@@ -32,12 +33,34 @@ describe("new-lead alert", () => {
   it("lists the lead's details and links Message 1 on WhatsApp", () => {
     const { subject, text } = newLeadAlert(lead(), opts);
     expect(subject).toBe("New lead: Sara, A2 to B1");
-    expect(text).toContain("Name: Sara Ali\nLevel: A2 to B1\nGoal: job interviews and career development\nPreferred days: Tuesday, Thursday\nPreferred time: Evening (17:00–21:00)");
+    expect(text).toContain("Name: Sara Ali\nPlacement test: completed\nLevel: A2 to B1\nGoal: job interviews and career development\nPreferred days: Tuesday, Thursday\nPreferred time: Evening (17:00–21:00)");
     expect(text).toContain("Source: instagram");
     const link = text.split("\n").find((l) => l.startsWith("https://wa.me/"))!;
     expect(link.startsWith("https://wa.me/201012345678?text=Hi%20Sara%2C%20it's%20Abdul%20from%20FluentBridges.")).toBe(true);
     expect(text).toContain("https://fluentbridges.com/instructor/app_123");
     expect(text).not.toMatch(/\u2014/);
+  });
+
+  it("says whether the test was taken, with a level only when it was completed", () => {
+    const done = newLeadAlert(lead(), opts);
+    expect(done.text).toContain("Placement test: completed\nLevel: A2 to B1");
+    expect(done.text).toContain("I%20just%20looked%20at%20your%20placement%20test");
+
+    const notStarted = newLeadAlert(lead({ test_status: "not_started", category_scores: null, improvement_areas: [] }), { ...opts, level: null });
+    expect(notStarted.subject).toBe("New lead: Sara, test not taken");
+    expect(notStarted.text).toMatch(/^A new lead signed up\./);
+    expect(notStarted.text).toContain("Placement test: not taken yet");
+    expect(notStarted.text).not.toContain("Level:");
+    expect(decodeURIComponent(notStarted.text)).toContain("Thanks for signing up.");
+    expect(decodeURIComponent(notStarted.text)).not.toContain("placement test.");
+
+    for (const status of ["in_progress", "writing"] as const) {
+      const started = newLeadAlert(lead({ test_status: status }), opts);
+      expect(started.subject).toBe("New lead: Sara, test not finished");
+      expect(started.text).toContain("Placement test: started, not finished");
+      expect(started.text).not.toContain("Level:");
+      expect(decodeURIComponent(started.text)).not.toMatch(/solid|fastest gain|looked at your placement test/);
+    }
   });
 
   it("leaves out the source line when there is no attribution", () => {

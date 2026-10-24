@@ -33,6 +33,7 @@ const input = (over: Partial<FollowUpInput> = {}): FollowUpInput => ({
   },
   improvement_areas: ["Review the past simple (A2).", "Review first conditional (B1).", "Sentence construction & practical use: 1 of 4 correct."],
   trial_price: "100 EGP",
+  test_completed: true,
   ...over,
 });
 const opts = { now: NOW, trialRefundCopy: false };
@@ -89,6 +90,41 @@ describe("follow-up messages", () => {
 
   it("uses the other-goal text, with only the first letter lowercased, when the goal is Other", () => {
     expect(renderFollowUp(1, input({ primary_learning_goal: "other", other_goal_text: "Medical English" }), opts)).toContain("For medical English,");
+  });
+});
+
+describe("message 1 by test status", () => {
+  const NO_TEST =
+    "Hi Sara, it's Abdul from FluentBridges. Thanks for signing up. For job interviews and career development, the best way to start is a 30 minute video trial where I hear you speak and then send you a written plan. Does Tuesday at 17:00 work? Reply YES and I'll send the link.";
+
+  it("test completed: talks about the placement test and the result", () => {
+    const m1 = renderFollowUp(1, input(), opts);
+    expect(m1).toContain("I just looked at your placement test.");
+    expect(m1).toContain("Your reading comprehension is solid, and the fastest gain is the past simple.");
+  });
+
+  it("test not started: never mentions the test or a result", () => {
+    const lead = input({ test_completed: false, category_scores: null, improvement_areas: [] });
+    expect(renderFollowUp(1, lead, opts)).toBe(NO_TEST);
+  });
+
+  it("test started but not finished: ignores the partial scores", () => {
+    // After the multiple-choice part, category scores exist even though the test isn't complete.
+    const lead = input({ test_completed: false, improvement_areas: [] });
+    const m1 = renderFollowUp(1, lead, opts);
+    expect(m1).toBe(NO_TEST);
+    expect(m1).not.toMatch(/placement test|result|solid|fastest gain|reading/i);
+    // Message 2's tip falls back to the general one instead of using a gap from the unfinished test.
+    expect(renderFollowUp(2, input({ test_completed: false }), opts)).toContain(FALLBACK_TIP.tip);
+  });
+
+  it("keeps each location's trial price behaviour in message 3, including no published price", () => {
+    expect(renderFollowUp(3, input({ test_completed: false }), opts)).toContain("The trial is 100 EGP");
+    expect(renderFollowUp(3, input({ test_completed: false, trial_price: null }), opts)).not.toContain("The trial is");
+  });
+
+  it("drops the slot sentence of the no-test message when there are no preferred days", () => {
+    expect(renderFollowUp(1, input({ test_completed: false, preferred_days: [] }), opts)).not.toContain("Does");
   });
 });
 

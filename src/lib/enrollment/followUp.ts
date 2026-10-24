@@ -46,6 +46,18 @@ const TEMPLATES: Record<FollowUpMessage, Sentence[]> = {
   ],
 };
 
+/**
+ * Message 1 for a lead who signed up but hasn't completed the placement test
+ * (not started, or started and not finished). It never mentions the test or a result.
+ */
+const MESSAGE_1_NO_TEST: Sentence[] = [
+  "Hi {first_name}, it's Abdul from FluentBridges.",
+  "Thanks for signing up.",
+  "For {goal}, the best way to start is a 30 minute video trial where I hear you speak and then send you a written plan.",
+  "Does {slot} work?",
+  "Reply YES and I'll send the link.",
+];
+
 export const REFUND_LINE = "If you don't leave with a clear plan, I refund it.";
 
 /** Tips keyed by the scoring code's skill tags (without a leading "the"). */
@@ -85,6 +97,8 @@ export type FollowUpInput = {
   improvement_areas: string[];
   /** Formatted trial price for the lead's location, or null when none is published. */
   trial_price: string | null;
+  /** True only when the placement test is completed. Scores from an unfinished test are never quoted. */
+  test_completed: boolean;
 };
 
 export type FollowUpOptions = { now: Date; trialRefundCopy: boolean };
@@ -174,7 +188,7 @@ export const goalText = (input: Pick<FollowUpInput, "primary_learning_goal" | "o
 
 export const followUpVars = (input: FollowUpInput, { now, trialRefundCopy }: FollowUpOptions): Vars => {
   const days = upcomingDays(input.preferred_days, now, input.timezone);
-  const gap = topGap(input.improvement_areas);
+  const gap = input.test_completed ? topGap(input.improvement_areas) : null;
   const { tip, example } = tipFor(gap);
   const expiry =
     input.access_expires_at && !input.access_revoked_at && new Date(input.access_expires_at) > now
@@ -184,7 +198,7 @@ export const followUpVars = (input: FollowUpInput, { now, trialRefundCopy }: Fol
       : undefined;
   return {
     first_name: input.full_name.trim().split(/\s+/)[0] || undefined,
-    strength: strongestSkill(input.category_scores)?.label,
+    strength: input.test_completed ? strongestSkill(input.category_scores)?.label : undefined,
     top_gap: gap ?? undefined,
     goal: goalText(input) || undefined,
     slot: slotLabel(days[0], input.preferred_time_of_day),
@@ -221,7 +235,7 @@ export const renderSentences = (sentences: Sentence[], vars: Vars): string =>
     .join(" ");
 
 export const renderFollowUp = (n: FollowUpMessage, input: FollowUpInput, options: FollowUpOptions) =>
-  renderSentences(TEMPLATES[n], followUpVars(input, options));
+  renderSentences(n === 1 && !input.test_completed ? MESSAGE_1_NO_TEST : TEMPLATES[n], followUpVars(input, options));
 
 /** wa.me link: digits only, with the country code (from the stored E.164 number). */
 export const whatsappUrl = (e164: string, text: string) =>
