@@ -125,6 +125,17 @@ describe("message 1 by test status", () => {
     expect(renderFollowUp(3, input({ test_completed: false, trial_price: null }), opts)).not.toContain("The trial is");
   });
 
+  it("message 4: keeps results wording for completed tests and offers the trial otherwise", () => {
+    expect(renderFollowUp(4, input(), opts)).toBe(
+      "Last message from me, Sara. Your results stay saved until 18 November 2026. If now isn't the right time, reply LATER and I'll check in next month.",
+    );
+    const noTest =
+      "Last message from me, Sara. The 30 minute trial is there whenever you want it. If now isn't the right time, reply LATER and I'll check in next month.";
+    // Not started, and started but not finished.
+    expect(renderFollowUp(4, input({ test_completed: false, category_scores: null, improvement_areas: [] }), opts)).toBe(noTest);
+    expect(renderFollowUp(4, input({ test_completed: false }), opts)).toBe(noTest);
+  });
+
   it("drops the slot sentence of the no-test message when there are no preferred days", () => {
     expect(renderFollowUp(1, input({ test_completed: false, preferred_days: [] }), opts)).not.toContain("Does");
   });

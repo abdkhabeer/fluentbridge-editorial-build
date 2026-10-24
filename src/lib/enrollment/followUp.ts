@@ -58,6 +58,15 @@ const MESSAGE_1_NO_TEST: Sentence[] = [
   "Reply YES and I'll send the link.",
 ];
 
+/** Message 4 for a lead without a completed test: no results to keep, so it offers the trial instead. */
+const MESSAGE_4_NO_TEST: Sentence[] = [
+  "Last message from me, {first_name}.",
+  "The 30 minute trial is there whenever you want it.",
+  "If now isn't the right time, reply LATER and I'll check in next month.",
+];
+
+const NO_TEST_TEMPLATES: Partial<Record<FollowUpMessage, Sentence[]>> = { 1: MESSAGE_1_NO_TEST, 4: MESSAGE_4_NO_TEST };
+
 export const REFUND_LINE = "If you don't leave with a clear plan, I refund it.";
 
 /** Tips keyed by the scoring code's skill tags (without a leading "the"). */
@@ -235,7 +244,7 @@ export const renderSentences = (sentences: Sentence[], vars: Vars): string =>
     .join(" ");
 
 export const renderFollowUp = (n: FollowUpMessage, input: FollowUpInput, options: FollowUpOptions) =>
-  renderSentences(n === 1 && !input.test_completed ? MESSAGE_1_NO_TEST : TEMPLATES[n], followUpVars(input, options));
+  renderSentences((!input.test_completed && NO_TEST_TEMPLATES[n]) || TEMPLATES[n], followUpVars(input, options));
 
 /** wa.me link: digits only, with the country code (from the stored E.164 number). */
 export const whatsappUrl = (e164: string, text: string) =>
