@@ -184,7 +184,7 @@ const LeadList = ({ leads, onOpen }: { leads: LeadSummary[]; onOpen: (id: string
                   <span className="font-serif text-xl text-foreground">{l.full_name}</span>
                   <span className="flex flex-wrap items-center gap-2">
                     {(() => {
-                      const waiting = waitingMinutes(l.assessment_completed_at, l.follow_up_count, now);
+                      const waiting = waitingMinutes({ completedAt: l.assessment_completed_at, createdAt: l.created_at }, l.follow_up_count, now);
                       return waiting === null ? null : <WaitingBadge minutes={waiting} />;
                     })()}
                     <StatusBadge status={l.lead_status} />

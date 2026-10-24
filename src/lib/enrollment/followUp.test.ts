@@ -9,6 +9,8 @@ import {
   upcomingDays,
   waitingLabel,
   waitingMinutes,
+  NO_TEST_GRACE_MINUTES,
+  WAITING_ALERT_MINUTES,
   whatsappUrl,
   type FollowUpInput,
 } from "./followUp";
@@ -170,9 +172,19 @@ describe("links and badges", () => {
   });
 
   it("counts waiting minutes only for completed tests with no follow-up", () => {
-    expect(waitingMinutes("2026-10-19T06:52:30Z", 0, NOW)).toBe(7);
-    expect(waitingMinutes("2026-10-19T06:52:30Z", 1, NOW)).toBeNull();
-    expect(waitingMinutes(null, 0, NOW)).toBeNull();
+    // Completed test: from completion, whenever the lead signed up.
+    const done = { completedAt: "2026-10-19T06:52:30Z", createdAt: "2026-10-19T06:00:00Z" };
+    expect(waitingMinutes(done, 0, NOW)).toBe(7);
+    expect(waitingMinutes({ ...done, createdAt: "2026-10-19T06:50:00Z" }, 0, NOW)).toBe(7);
+    expect(waitingMinutes(done, 1, NOW)).toBeNull();
+    // No completed test: nothing for 20 minutes after sign-up, then counted from there.
+    const signedUp = (minutesAgo: number) => ({ completedAt: null, createdAt: new Date(NOW.getTime() - minutesAgo * 60_000).toISOString() });
+    expect(waitingMinutes(signedUp(19), 0, NOW)).toBeNull();
+    expect(waitingMinutes(signedUp(20), 0, NOW)).toBe(0);
+    expect(waitingMinutes(signedUp(24), 0, NOW)).toBe(4);
+    expect(waitingMinutes(signedUp(25), 0, NOW)).toBe(WAITING_ALERT_MINUTES);
+    expect(waitingMinutes(signedUp(90), 1, NOW)).toBeNull();
+    expect(NO_TEST_GRACE_MINUTES).toBe(20);
     expect(waitingLabel(4)).toBe("waiting 4 min");
     expect(waitingLabel(125)).toBe("waiting 2 h 5 min");
     expect(waitingLabel(3000)).toBe("waiting 2 d");

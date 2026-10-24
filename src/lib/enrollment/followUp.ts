@@ -241,10 +241,25 @@ export const renderFollowUp = (n: FollowUpMessage, input: FollowUpInput, options
 export const whatsappUrl = (e164: string, text: string) =>
   `https://wa.me/${e164.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
 
-/** Minutes a lead has waited since finishing the test with no follow-up, or null when not waiting. */
-export const waitingMinutes = (completedAt: string | null, followUps: number, now: Date): number | null => {
-  if (!completedAt || followUps > 0) return null;
-  return Math.max(0, Math.floor((now.getTime() - new Date(completedAt).getTime()) / 60_000));
+/** Leads without a completed test get this long to start or finish it before the waiting clock starts. */
+export const NO_TEST_GRACE_MINUTES = 20;
+
+/**
+ * Minutes a lead has been waiting with no follow-up, or null when not waiting.
+ * - Completed test: counted from completion.
+ * - No completed test: counted from 20 minutes after sign-up, and null before then.
+ */
+export const waitingMinutes = (
+  lead: { completedAt: string | null; createdAt: string },
+  followUps: number,
+  now: Date,
+): number | null => {
+  if (followUps > 0) return null;
+  const start = lead.completedAt
+    ? new Date(lead.completedAt).getTime()
+    : new Date(lead.createdAt).getTime() + NO_TEST_GRACE_MINUTES * 60_000;
+  if (Number.isNaN(start) || now.getTime() < start) return null;
+  return Math.floor((now.getTime() - start) / 60_000);
 };
 
 export const WAITING_ALERT_MINUTES = 5;
