@@ -4,7 +4,7 @@ When a lead finishes the placement test, the server emails the instructor throug
 
 ## What the email contains
 
-Name, level range, goal, preferred days and time, source (only when lead attribution is stored), the Message 1 `wa.me` link and a link to the lead in the admin. It goes only to `ALERT_EMAIL_TO`. Students are never emailed by this code.
+Name, whether the placement test was taken ("completed", "started, not finished" or "not taken yet"), the level range (completed tests only), goal, preferred days and time, source (only when lead attribution is stored), the Message 1 `wa.me` link and a link to the lead in the admin. For a lead without a completed test, Message 1 doesn't mention the test or any result. It goes only to `ALERT_EMAIL_TO`. Students are never emailed by this code.
 
 ## Behaviour
 

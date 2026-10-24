@@ -286,6 +286,7 @@ const ReplyOnWhatsApp = ({ lead, onSent }: { lead: LeadDetail; onSent: (n: Follo
     category_scores: lead.assessment.category_scores,
     improvement_areas: lead.assessment.improvement_areas,
     trial_price: trialPriceFor(app.country, app.city),
+    test_completed: lead.assessment.status === "completed",
   };
   const options = { now: new Date(), trialRefundCopy: featureFlags.trialRefundCopy };
   return (
