@@ -1,11 +1,13 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_EMAIL_FROM, RESEND_ENDPOINT, newLeadAlert, sendAlertSafely, type NewLeadInput } from "./email";
+import { DEFAULT_EMAIL_FROM, RESEND_ENDPOINT, newLeadAlert, sendAlertSafely, signupAlert, type NewLeadInput } from "./email";
 
 const lead = (over: Partial<NewLeadInput> = {}): NewLeadInput => ({
   id: "app_123",
   full_name: "Sara Ali",
   whatsapp_number: "+201012345678",
+  country: "Egypt",
+  city: "Cairo",
   primary_learning_goal: "career",
   other_goal_text: null,
   preferred_days: ["thu", "tue"],
@@ -61,6 +63,31 @@ describe("new-lead alert", () => {
       expect(started.text).not.toContain("Level:");
       expect(decodeURIComponent(started.text)).not.toMatch(/solid|fastest gain|looked at your placement test/);
     }
+  });
+
+  it("builds the sign-up alert with location, source and the no-test Message 1", () => {
+    const { subject, text } = signupAlert(lead({ category_scores: null, improvement_areas: [] }), opts);
+    expect(subject).toBe("New lead: Sara Ali, test not taken yet");
+    expect(text).toBe(
+      [
+        "A new lead signed up.",
+        "",
+        "Name: Sara Ali",
+        "Placement test: not taken yet",
+        "Goal: job interviews and career development",
+        "Location: Cairo, Egypt",
+        "Preferred days: Tuesday, Thursday",
+        "Preferred time: Evening (17:00–21:00)",
+        "Source: instagram",
+        "",
+        "Send Message 1 on WhatsApp:",
+        `https://wa.me/201012345678?text=${encodeURIComponent("Hi Sara, it's Abdul from FluentBridges. Thanks for signing up. For job interviews and career development, the best way to start is a 30 minute video trial where I hear you speak and then send you a written plan. Does Tuesday at 17:00 work? Reply YES and I'll send the link.")}`,
+        "",
+        "Open the lead:",
+        "https://fluentbridges.com/instructor/app_123",
+      ].join("\n"),
+    );
+    expect(signupAlert(lead({ attribution: null }), opts).text).not.toContain("Source:");
   });
 
   it("leaves out the source line when there is no attribution", () => {

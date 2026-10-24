@@ -9,6 +9,8 @@ import {
   upcomingDays,
   waitingLabel,
   waitingMinutes,
+  NO_TEST_GRACE_MINUTES,
+  WAITING_ALERT_MINUTES,
   whatsappUrl,
   type FollowUpInput,
 } from "./followUp";
@@ -123,6 +125,17 @@ describe("message 1 by test status", () => {
     expect(renderFollowUp(3, input({ test_completed: false, trial_price: null }), opts)).not.toContain("The trial is");
   });
 
+  it("message 4: keeps results wording for completed tests and offers the trial otherwise", () => {
+    expect(renderFollowUp(4, input(), opts)).toBe(
+      "Last message from me, Sara. Your results stay saved until 18 November 2026. If now isn't the right time, reply LATER and I'll check in next month.",
+    );
+    const noTest =
+      "Last message from me, Sara. The 30 minute trial is there whenever you want it. If now isn't the right time, reply LATER and I'll check in next month.";
+    // Not started, and started but not finished.
+    expect(renderFollowUp(4, input({ test_completed: false, category_scores: null, improvement_areas: [] }), opts)).toBe(noTest);
+    expect(renderFollowUp(4, input({ test_completed: false }), opts)).toBe(noTest);
+  });
+
   it("drops the slot sentence of the no-test message when there are no preferred days", () => {
     expect(renderFollowUp(1, input({ test_completed: false, preferred_days: [] }), opts)).not.toContain("Does");
   });
@@ -170,9 +183,19 @@ describe("links and badges", () => {
   });
 
   it("counts waiting minutes only for completed tests with no follow-up", () => {
-    expect(waitingMinutes("2026-10-19T06:52:30Z", 0, NOW)).toBe(7);
-    expect(waitingMinutes("2026-10-19T06:52:30Z", 1, NOW)).toBeNull();
-    expect(waitingMinutes(null, 0, NOW)).toBeNull();
+    // Completed test: from completion, whenever the lead signed up.
+    const done = { completedAt: "2026-10-19T06:52:30Z", createdAt: "2026-10-19T06:00:00Z" };
+    expect(waitingMinutes(done, 0, NOW)).toBe(7);
+    expect(waitingMinutes({ ...done, createdAt: "2026-10-19T06:50:00Z" }, 0, NOW)).toBe(7);
+    expect(waitingMinutes(done, 1, NOW)).toBeNull();
+    // No completed test: nothing for 20 minutes after sign-up, then counted from there.
+    const signedUp = (minutesAgo: number) => ({ completedAt: null, createdAt: new Date(NOW.getTime() - minutesAgo * 60_000).toISOString() });
+    expect(waitingMinutes(signedUp(19), 0, NOW)).toBeNull();
+    expect(waitingMinutes(signedUp(20), 0, NOW)).toBe(0);
+    expect(waitingMinutes(signedUp(24), 0, NOW)).toBe(4);
+    expect(waitingMinutes(signedUp(25), 0, NOW)).toBe(WAITING_ALERT_MINUTES);
+    expect(waitingMinutes(signedUp(90), 1, NOW)).toBeNull();
+    expect(NO_TEST_GRACE_MINUTES).toBe(20);
     expect(waitingLabel(4)).toBe("waiting 4 min");
     expect(waitingLabel(125)).toBe("waiting 2 h 5 min");
     expect(waitingLabel(3000)).toBe("waiting 2 d");

@@ -684,44 +684,94 @@ describe("funnel events and attribution", () => {
   });
 });
 
-describe("new-lead alert email", () => {
-  const finish = async () => {
-    const { t, res } = await submit();
+describe("new-lead alert emails", () => {
+  const sent = (fetch: ReturnType<typeof vi.fn>) =>
+    fetch.mock.calls.map((c) => JSON.parse((c as unknown as [string, RequestInit])[1].body as string) as { subject: string; text: string });
+  const okFetch = () => vi.fn(async () => new Response("{}", { status: 200 }));
+  const finish = async (t: string) => {
     await call("POST", "/api/assessment/objective", { answers: allCorrect }, asStudent(t));
-    return { t, id: res.body.application_id as string, done: await call("POST", "/api/assessment/complete", { skipped: true }, asStudent(t)) };
+    return call("POST", "/api/assessment/complete", { skipped: true }, asStudent(t));
   };
 
-  it("sends one alert when a lead completes the test, not again on a repeat", async () => {
-    const fetch = vi.fn(async () => new Response("{}", { status: 200 }));
+  it("sends a sign-up alert when the form is submitted, with the no-test Message 1", async () => {
+    const fetch = okFetch();
     ctx.config.email = { apiKey: "re_test", to: "alerts@example.com", fetch };
-    const { t, id } = await finish();
-    await call("POST", "/api/assessment/complete", { skipped: true }, asStudent(t));
-    expect(fetch).toHaveBeenCalledTimes(1);
-    const body = JSON.parse((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
-    expect(body.subject).toBe("New lead: Mona, C2");
-    expect(body.text).toContain("Goal: business English and workplace communication");
-    expect(body.text).toContain(`https://fluentbridges.com/instructor/${id}`);
-    expect(body.text).toMatch(/https:\/\/wa\.me\/201012345678\?text=Hi%20Mona/);
+    const { res } = await submit();
+    expect(res.status).toBe(201);
+    const [mail] = sent(fetch);
+    expect(sent(fetch)).toHaveLength(1);
+    expect(mail.subject).toBe("New lead: Mona Adel, test not taken yet");
+    expect(mail.text).toMatch(/^A new lead signed up\./);
+    expect(mail.text).toContain("Placement test: not taken yet\nGoal: business English and workplace communication\nLocation: Cairo, Egypt\nPreferred days:");
+    expect(mail.text).not.toContain("Level:");
+    expect(decodeURIComponent(mail.text)).toContain("Hi Mona, it's Abdul from FluentBridges. Thanks for signing up.");
+    expect(decodeURIComponent(mail.text)).not.toContain("placement test.");
+    expect(mail.text).toContain(`https://fluentbridges.com/instructor/${res.body.application_id}`);
+    expect((await app(res.body.application_id))!.alerts_sent?.signup).toBe(T0.toISOString());
   });
 
-  it("never blocks the lead when sending fails, and hands the work to waitUntil when available", async () => {
+  it("sends the completion alert once, with the level, after the sign-up alert", async () => {
+    const fetch = okFetch();
+    ctx.config.email = { apiKey: "re_test", to: "alerts@example.com", fetch };
+    const { t, res } = await submit();
+    await finish(t);
+    await call("POST", "/api/assessment/complete", { skipped: true }, asStudent(t));
+    const mails = sent(fetch);
+    expect(mails.map((m) => m.subject)).toEqual(["New lead: Mona Adel, test not taken yet", "New lead: Mona, C2"]);
+    expect(mails[1].text).toContain("Placement test: completed\nLevel: C2");
+    expect(decodeURIComponent(mails[1].text)).toContain("I just looked at your placement test.");
+    expect(Object.keys((await app(res.body.application_id))!.alerts_sent!).sort()).toEqual(["completed", "signup"]);
+  });
+
+  it("never sends the sign-up alert twice for retried, repeated or concurrent submissions", async () => {
+    const fetch = okFetch();
+    ctx.config.email = { apiKey: "re_test", to: "alerts@example.com", fetch };
+    const t = token();
+    const results = await Promise.all([submit(t), submit(t), submit(t)]);
+    expect(results.map((r) => r.res.status).sort()).toEqual([200, 200, 201]);
+    await submit(t);
+    expect(sent(fetch)).toHaveLength(1);
+  });
+
+  it("never blocks saving the lead when sending fails, and hands each alert to waitUntil", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     ctx.config.email = { apiKey: "re_test", to: "alerts@example.com", fetch: async () => Promise.reject(new Error("down")) };
     const waited: Promise<unknown>[] = [];
     ctx.waitUntil = (w) => waited.push(w);
-    const { done, id } = await finish();
+    const { t, res } = await submit();
+    expect(res.status).toBe(201);
+    const done = await finish(t);
     expect(done.status).toBe(200);
     expect(done.body.result.estimated_cefr_level).toBe("C2");
-    expect(waited).toHaveLength(1);
-    await expect(waited[0]).resolves.toBeUndefined();
-    expect((await app(id))!.lead_status).toBe("assessment_completed");
+    expect(waited).toHaveLength(2);
+    await Promise.all(waited);
+    const a = (await app(res.body.application_id))!;
+    expect(a.lead_status).toBe("assessment_completed");
+    // A failed send is not retried: each alert type is claimed once.
+    expect(Object.keys(a.alerts_sent!).sort()).toEqual(["completed", "signup"]);
+  });
+
+  it("still saves the lead when recording the alert fails, and logs no personal data", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const t = token();
+    const first = await submit(t);
+    const fetch = okFetch();
+    ctx.config.email = { apiKey: "re_test", to: "alerts@example.com", fetch };
+    failNext = "applications/";
+    const again = await submit(t);
+    expect(again.res.status).toBe(200);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(log.mock.calls.map((c) => c.join(" "))).toEqual(["[email] signup alert failed: storage error"]);
+    expect((await app(first.res.body.application_id))!.full_name).toBe("Mona Adel");
   });
 
   it("is off without RESEND_API_KEY", async () => {
     const fetch = vi.fn();
     ctx.config.email = { to: "alerts@example.com", fetch };
-    expect((await finish()).done.status).toBe(200);
+    const { t, res } = await submit();
+    expect((await finish(t)).status).toBe(200);
     expect(fetch).not.toHaveBeenCalled();
+    expect((await app(res.body.application_id))!.alerts_sent).toBeUndefined();
   });
 });
 

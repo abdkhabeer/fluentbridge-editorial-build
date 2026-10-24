@@ -26,6 +26,7 @@ import {
 import type {
   ApplicationRecordPublic,
   AssessmentStatus,
+  LeadAlertType,
   LeadDetail,
   LeadSummary,
   StudentAssessmentState,
@@ -66,7 +67,7 @@ import { ACCESS_TTL_DAYS, PROSPECT_RETENTION_DAYS } from "../src/lib/enrollment/
 import { keys, mapLimit, type Store } from "./store";
 import { MAX_FUNNEL_DAYS, funnelReport, recordEvent } from "./analytics";
 import { parseAttribution, parseEvent, sourceOf, SESSION_ID, type Attribution } from "../src/lib/analytics/events";
-import { emailEnabled, newLeadAlert, sendAlertSafely, type EmailConfig } from "./email";
+import { emailEnabled, newLeadAlert, sendAlertSafely, signupAlert, type EmailConfig } from "./email";
 
 export const CONSENT_VERSION = "2026-10-enrollment-v3";
 export { ACCESS_TTL_DAYS, PROSPECT_RETENTION_DAYS };
@@ -359,6 +360,9 @@ const createApplication = async (req: Request, ctx: ApiContext) => {
     assessment = await ctx.store.get<AssessmentRecord>(keys.assessment(index.assessment_id));
   }
 
+  // Once per lead: a retried or repeated submission finds the alert already claimed.
+  await alertLead(req, ctx, "signup", index.application_id);
+
   return json(created ? 201 : 200, {
     application_id: index.application_id,
     assessment_status: assessment?.value.status ?? "not_started",
@@ -548,24 +552,55 @@ const completeAssessment = async (req: Request, ctx: ApiContext) => {
       })
     ).value;
   }
-  if (justCompleted) await alertNewLead(req, ctx, latestApplication, assessment);
+  if (justCompleted) await alertLead(req, ctx, "completed", latestApplication.id);
   return json(200, { result: studentResult(latestApplication, assessment) });
 };
 
-/** Emails the instructor about a lead who just finished the test. Never throws. With waitUntil it runs after the response. */
-const alertNewLead = async (req: Request, ctx: ApiContext, application: ApplicationRecord, a: AssessmentRecord) => {
-  if (!emailEnabled(ctx.config.email) || !a.objective) return;
-  const email = newLeadAlert(
-    {
-      ...application,
-      category_scores: a.objective.category_scores,
-      improvement_areas: a.improvement_areas,
-      trial_price: trialPriceFor(application.country, application.city),
-      test_status: a.status,
-    },
-    { level: a.objective.estimated_cefr_level, now: nowDate(ctx), trialRefundCopy: false, siteOrigin: new URL(req.url).origin },
-  );
-  const work = sendAlertSafely(ctx.config.email, email);
+/**
+ * Marks an alert type as sent on the application, atomically. Returns true only for the
+ * first caller, so retries, refreshes and concurrent requests never send it twice.
+ */
+const claimAlert = async (store: Store, applicationId: string, type: LeadAlertType, at: string) => {
+  let claimed = false;
+  await update<ApplicationRecord>(store, keys.application(applicationId), (app) => {
+    claimed = !app.alerts_sent?.[type];
+    if (claimed) app.alerts_sent = { ...app.alerts_sent, [type]: at };
+    return app;
+  });
+  return claimed;
+};
+
+/**
+ * Emails the instructor about a new lead ("signup") or a completed test ("completed"), at most once
+ * per lead per type. Never throws, and a failure never affects saving the lead. With waitUntil it
+ * runs after the response.
+ */
+const alertLead = async (req: Request, ctx: ApiContext, type: LeadAlertType, applicationId: string) => {
+  if (!emailEnabled(ctx.config.email)) return;
+  const siteOrigin = new URL(req.url).origin;
+  const now = nowDate(ctx);
+  const work = (async () => {
+    try {
+      if (!(await claimAlert(ctx.store, applicationId, type, now.toISOString()))) return;
+      const application = (await ctx.store.get<ApplicationRecord>(keys.application(applicationId)))?.value;
+      if (!application) return;
+      const base = { ...application, trial_price: trialPriceFor(application.country, application.city) };
+      let email;
+      if (type === "signup") {
+        email = signupAlert({ ...base, category_scores: null, improvement_areas: [], test_status: "not_started" }, { now, trialRefundCopy: false, siteOrigin });
+      } else {
+        const a = (await ctx.store.get<AssessmentRecord>(keys.assessment(application.assessment_id)))?.value;
+        if (!a?.objective) return;
+        email = newLeadAlert(
+          { ...base, category_scores: a.objective.category_scores, improvement_areas: a.improvement_areas, test_status: a.status },
+          { level: a.objective.estimated_cefr_level, now, trialRefundCopy: false, siteOrigin },
+        );
+      }
+      await sendAlertSafely(ctx.config.email, email);
+    } catch {
+      console.error(`[email] ${type} alert failed: storage error`);
+    }
+  })();
   if (ctx.waitUntil) ctx.waitUntil(work);
   else await work;
 };

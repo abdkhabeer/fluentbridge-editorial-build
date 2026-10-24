@@ -1,16 +1,20 @@
 # New-lead alert email
 
-When a lead finishes the placement test, the server emails the instructor through Resend's HTTPS API. There is no SDK; `server/email.ts` calls `https://api.resend.com/emails` with `fetch`.
+The server emails the instructor through Resend's HTTPS API twice per lead: when the enrollment form is submitted, and when the placement test is completed. There is no SDK; `server/email.ts` calls `https://api.resend.com/emails` with `fetch`.
 
-## What the email contains
+## What the emails contain
 
-Name, whether the placement test was taken ("completed", "started, not finished" or "not taken yet"), the level range (completed tests only), goal, preferred days and time, source (only when lead attribution is stored), the Message 1 `wa.me` link and a link to the lead in the admin. For a lead without a completed test, Message 1 doesn't mention the test or any result. It goes only to `ALERT_EMAIL_TO`. Students are never emailed by this code.
+- **Sign-up** (form submitted), subject "New lead: {name}, test not taken yet": name, "Placement test: not taken yet", goal, location (city and country), preferred days and time, source (only when lead attribution is stored), the no-test Message 1 `wa.me` link and a link to the lead in the admin.
+- **Completion** (test completed), subject "New lead: {first name}, {level range}": the same without location, with "Placement test: completed" and the level range, and the test-based Message 1.
+
+They go only to `ALERT_EMAIL_TO`. Students are never emailed by this code.
 
 ## Behaviour
 
-- Sent once, when the test moves to completed. Repeat submits don't send again.
+- Each type is sent at most once per lead. Before sending, the server records it in `alerts_sent` on the application with a conditional write, so retried, repeated or concurrent requests never send it twice. A send that fails is not retried.
+- Leads created before this change have no `alerts_sent`. They get the completion alert if they complete the test later.
 - On Netlify the send runs after the response (`context.waitUntil`), so the student never waits for it. Elsewhere it is awaited, with a 5 second timeout.
-- Any failure (bad key, unverified sender, timeout, network) is logged as `[email] new-lead alert failed: <status or reason>`. The log never includes names, addresses or Resend's response body. The lead is saved and the results page works either way.
+- Any failure (bad key, unverified sender, timeout, network) is logged as `[email] new-lead alert failed: <status or reason>`, and a storage failure while recording the alert as `[email] <type> alert failed: storage error`. Logs never include names, addresses or Resend's response body. The lead is saved either way.
 - Off unless both `RESEND_API_KEY` and `ALERT_EMAIL_TO` are set.
 
 ## Settings (Netlify: Site configuration > Environment variables, scope Functions)
