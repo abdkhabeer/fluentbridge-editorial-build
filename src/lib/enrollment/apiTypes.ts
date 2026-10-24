@@ -8,6 +8,9 @@ import type { ReviewFlag } from "./flags";
 import type { FollowUpEvent } from "./followUp";
 import type { Attribution } from "../analytics/events";
 
+/** "signup": the enrollment form was submitted. "completed": the placement test was completed. */
+export type LeadAlertType = "signup" | "completed";
+
 export type AssessmentStatus = "not_started" | "in_progress" | "writing" | "completed";
 export type WritingStatus = "not_started" | "draft" | "submitted" | "skipped" | "scored";
 
@@ -144,6 +147,8 @@ export type ApplicationRecordPublic = NormalizedApplication & {
   access_revoked_at: string | null;
   /** WhatsApp follow-ups sent from the lead admin. Missing on leads created before this field existed. */
   follow_up_events?: FollowUpEvent[];
+  /** When each new-lead alert email was claimed for sending, so each is sent at most once. Missing on older leads. */
+  alerts_sent?: Partial<Record<LeadAlertType, string>>;
   /** First-touch attribution (only when FEATURE_LEAD_ATTRIBUTION is on). */
   attribution?: Attribution | null;
   analytics_session_id?: string | null;
